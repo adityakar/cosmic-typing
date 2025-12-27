@@ -392,7 +392,8 @@ class AsteroidDefenseLevel {
             strike.used = true;
             strike.available = false;
             
-            AudioManager.playPowerUp();
+            // Play the orbital blast sound effect
+            AudioManager.playOrbitalBlast();
             
             this.game.flashScreen('#ffffff');
             setTimeout(() => this.game.flashScreen('#ff00ff'), 100);
@@ -626,7 +627,8 @@ class AsteroidDefenseLevel {
             { count: 15, colors: ['#ff6600', '#ffcc00', '#ffffff'], speed: 150, size: 8 }
         );
         
-        AudioManager.playPowerUp();
+        // Play the mega missile sound effect
+        AudioManager.playMegaMissile();
     }
     
     aimCannon(target) {

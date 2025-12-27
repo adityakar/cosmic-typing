@@ -144,6 +144,11 @@ class GameUI {
         try {
             this.game.player.setName(name);
             console.log('Name set, showing skill assessment...');
+            
+            // Play welcome voice on first signup!
+            // "Welcome space cadet! Are you ready for your first adventure?"
+            AudioManager.playWelcome();
+            
             this.showSkillAssessment();
         } catch (error) {
             console.error('Error in handleNameSubmit:', error);

@@ -44,8 +44,9 @@ class CosmicTyper {
         this.starfield = new Starfield(this.bgCanvas);
         
         // Initialize audio (must be triggered by user interaction)
-        document.addEventListener('click', () => AudioManager.init(), { once: true });
-        document.addEventListener('keydown', () => AudioManager.init(), { once: true });
+        // Use unlockAudio() instead of init() to also start background music
+        document.addEventListener('click', () => AudioManager.unlockAudio(), { once: true });
+        document.addEventListener('keydown', () => AudioManager.unlockAudio(), { once: true });
         
         // Keyboard events
         document.addEventListener('keydown', (e) => this.handleKeyDown(e));
@@ -161,6 +162,8 @@ class CosmicTyper {
             this.currentLevel.description,
             () => {
                 this.state = 'playing';
+                // Fade out background music during gameplay
+                AudioManager.fadeMusicVolume(0.1, 1000);
                 this.currentLevel.start();
             }
         );
@@ -199,12 +202,20 @@ class CosmicTyper {
         this.currentLevel = null;
         this.currentLevelId = null;
         this.particles.clear();
+        
+        // Fade background music back to normal volume
+        AudioManager.fadeMusicVolume(AudioManager.musicVolume * AudioManager.masterVolume, 500);
+        
         this.ui.showMainMenu();
     }
     
     // Show result screen (called by levels)
     showResultScreen(results) {
         this.state = 'menu';
+        
+        // Fade background music back to normal for result screen
+        AudioManager.fadeMusicVolume(AudioManager.musicVolume * AudioManager.masterVolume, 500);
+        
         this.ui.showResultScreen(results);
     }
     
