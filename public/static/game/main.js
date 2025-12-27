@@ -117,8 +117,11 @@ class CosmicTyper {
         
         // Handle game input
         if (this.state === 'playing' && this.currentLevel) {
-            // Only handle letter keys
+            // Handle letter keys AND spacebar for power-ups
             if (key.length === 1 && key.match(/[a-zA-Z]/)) {
+                this.currentLevel.handleKeyPress(key);
+            } else if (key === ' ') {
+                // Pass spacebar to level for power-up activation
                 this.currentLevel.handleKeyPress(key);
             }
         }

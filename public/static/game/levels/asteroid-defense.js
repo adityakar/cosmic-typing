@@ -60,7 +60,8 @@ class AsteroidDefenseLevel {
         // Word mode - use dictionary words
         this.useWordMode = true; // Use word-based sequences
         this.currentWord = null;
-        this.currentWordIndex = 0;
+        this.currentWordIndex = 0;     // Next letter to SPAWN
+        this.typedLetterCount = 0;     // Letters TYPED from current word (for display)
         this.wordQueue = [];
         
         // Timers
@@ -83,8 +84,8 @@ class AsteroidDefenseLevel {
                 icon: '🚀',
                 active: false,
                 ready: false,
-                comboRequired: 10,
-                blastRadius: 150,
+                comboRequired: 5,   // Lowered from 10
+                blastRadius: 250,   // Increased from 150
                 damage: 100,
                 duration: 0,
                 color: '#ff6600'
@@ -95,24 +96,22 @@ class AsteroidDefenseLevel {
                 icon: '⚡',
                 active: false,
                 ready: false,
-                comboRequired: 15,
+                comboRequired: 10,  // Lowered from 15
                 shotsRemaining: 0,
                 maxShots: 3,
                 duration: 5000,
                 activatedAt: 0,
                 color: '#00ffff'
             },
-            // Shield Boost: Activated by SPACEBAR, one-time use per game
-            shield: {
-                name: 'Force Shield',
-                icon: '🛡️',
+            // Orbital Strike: One-time screen-clearing blast (replaces Shield)
+            orbitalStrike: {
+                name: 'Orbital Strike',
+                icon: '💥',
                 available: false, // Earned but not yet activated
-                active: false,    // Currently providing protection
+                active: false,    // Animation playing
                 used: false,      // Already used this game (one-time only)
-                comboRequired: 20,
-                duration: 5000,
-                activatedAt: 0,
-                color: '#44ff88',
+                comboRequired: 15, // Lowered from 20
+                color: '#ff00ff',
                 pulsePhase: 0     // For pulsing animation when available
             }
         };
@@ -175,6 +174,7 @@ class AsteroidDefenseLevel {
             this.wordQueue = WordDictionary.getRandomWords(20, this.difficulty);
             this.currentWord = this.wordQueue.shift();
             this.currentWordIndex = 0;
+            this.typedLetterCount = 0;
         }
         
         // Reset power-ups
@@ -183,11 +183,11 @@ class AsteroidDefenseLevel {
         this.powerUps.laser.active = false;
         this.powerUps.laser.ready = false;
         this.powerUps.laser.shotsRemaining = 0;
-        // Shield: reset for new game
-        this.powerUps.shield.available = false;
-        this.powerUps.shield.active = false;
-        this.powerUps.shield.used = false;
-        this.powerUps.shield.pulsePhase = 0;
+        // Orbital Strike: reset for new game
+        this.powerUps.orbitalStrike.available = false;
+        this.powerUps.orbitalStrike.active = false;
+        this.powerUps.orbitalStrike.used = false;
+        this.powerUps.orbitalStrike.pulsePhase = 0;
         
         this.activePowerUp = null;
         this.powerUpIndicators = [];
@@ -208,19 +208,22 @@ class AsteroidDefenseLevel {
     }
     
     getNextLetter() {
-        // Word mode: get next letter from current word
+        // Word mode: get next letter from current word AND advance index
         if (this.useWordMode && this.currentWord && window.WordDictionary) {
             if (this.currentWordIndex < this.currentWord.length) {
-                return this.currentWord[this.currentWordIndex];
+                const letter = this.currentWord[this.currentWordIndex];
+                this.currentWordIndex++; // Advance to next letter to spawn
+                return letter;
             } else {
-                // Move to next word
+                // Move to next word - reset typed count
                 this.currentWord = this.wordQueue.shift();
                 if (!this.currentWord) {
                     // Refill word queue
                     this.wordQueue = WordDictionary.getRandomWords(20, this.difficulty);
                     this.currentWord = this.wordQueue.shift();
                 }
-                this.currentWordIndex = 0;
+                this.currentWordIndex = 1; // Start at 1 since we return index 0
+                this.typedLetterCount = 0; // Reset typed count for new word
                 return this.currentWord ? this.currentWord[0] : Utils.randomChoice(this.letters);
             }
         }
@@ -234,7 +237,7 @@ class AsteroidDefenseLevel {
     }
     
     spawnAsteroid() {
-        // Get next letter (word mode or random)
+        // Get next letter (word mode or random) - letter index advances in getNextLetter()
         const letter = this.getNextLetter();
         
         // Random position at top
@@ -273,9 +276,9 @@ class AsteroidDefenseLevel {
         
         const pressedKey = key.toUpperCase();
         
-        // === SPACEBAR: Activate Force Shield ===
+        // === SPACEBAR: Activate Orbital Strike ===
         if (key === ' ' || key === 'Space') {
-            this.tryActivateShield();
+            this.tryActivateOrbitalStrike();
             return;
         }
         
@@ -295,76 +298,111 @@ class AsteroidDefenseLevel {
         if (matchingAsteroid) {
             this.destroyAsteroid(matchingAsteroid);
             this.recordHit(true, pressedLetter);
-            
-            // Advance word index if using word mode
+            // Advance typed letter count for word display
             if (this.useWordMode && this.currentWord) {
-                this.currentWordIndex++;
+                this.typedLetterCount++;
+                // Check if we've typed the whole word (for display purposes)
+                if (this.typedLetterCount >= this.currentWord.length) {
+                    // Word complete - typedLetterCount will reset when new word starts
+                }
             }
         } else {
             this.recordMiss(pressedLetter);
         }
     }
     
-    // === SHIELD ACTIVATION (SPACEBAR) ===
-    tryActivateShield() {
-        const shield = this.powerUps.shield;
+    // === ORBITAL STRIKE ACTIVATION (SPACEBAR) ===
+    tryActivateOrbitalStrike() {
+        const strike = this.powerUps.orbitalStrike;
         
-        // Check if shield is available and not used
-        if (shield.available && !shield.active && !shield.used) {
-            // Activate the shield!
-            shield.active = true;
-            shield.used = true;
-            shield.available = false;
-            shield.activatedAt = Date.now();
+        // Check if orbital strike is available and not used
+        if (strike.available && !strike.active && !strike.used) {
+            // Activate the orbital strike!
+            strike.active = true;
+            strike.used = true;
+            strike.available = false;
             
-            // Play shield activation sound
-            AudioManager.playShieldActivate();
+            // Play powerful activation sound
+            AudioManager.playPowerUp();
             
-            // Big visual effect - multiple rings expanding outward
-            for (let i = 0; i < 3; i++) {
-                setTimeout(() => {
-                    this.particles.ring(this.earth.x, this.cannon.y - 50, {
-                        count: 40 - i * 10,
-                        color: '#44ff88',
-                        speed: 350 - i * 50
-                    });
-                }, i * 100);
-            }
+            // Flash screen white then purple
+            this.game.flashScreen('#ffffff');
+            setTimeout(() => this.game.flashScreen('#ff00ff'), 100);
             
-            // Shield formation particles rising from ground
-            for (let i = 0; i < 30; i++) {
-                const angle = (Math.PI / 12) * i - Math.PI;
-                const radius = this.earth.radius + 50;
-                const x = this.earth.x + Math.cos(angle) * radius;
-                const y = this.earth.y + 170 + Math.sin(angle) * radius;
-                
-                this.particles.addParticle(new Particle(x, y, {
-                    vx: Math.cos(angle) * 50,
-                    vy: Math.sin(angle) * 50 - 100,
-                    life: 0.8,
-                    size: Utils.random(5, 10),
-                    endSize: 0,
-                    color: Utils.randomChoice(['#44ff88', '#88ffaa', '#ffffff']),
-                    glow: true,
-                    glowSize: 15
-                }));
-            }
-            
-            // Screen effect - green tint
-            this.game.flashScreen('#44ff88');
-            
-            // Screen shake for impact
-            this.game.screenShake.start(8, 300);
+            // Big screen shake
+            this.game.screenShake.start(20, 500);
             
             // Notification
             this.powerUpIndicators.push({
-                text: '🛡️ FORCE SHIELD ACTIVATED!',
+                text: '💥 ORBITAL STRIKE ACTIVATED!',
                 x: this.canvas.width / 2,
                 y: this.canvas.height / 2 - 50,
                 alpha: 1,
-                scale: 2,
-                life: 2.5
+                scale: 2.5,
+                life: 2
             });
+            
+            // Create beam from top of screen to center
+            const beamX = this.canvas.width / 2;
+            this.hyperLaserBeams.push({
+                startX: beamX,
+                startY: -50,
+                endX: beamX,
+                endY: this.canvas.height / 2,
+                width: 80,
+                alpha: 1.0,
+                life: 0.8,
+                maxLife: 0.8,
+                color: '#ff00ff',
+                coreColor: '#ffffff',
+                outerColor: '#ff88ff',
+                type: 'orbital'
+            });
+            
+            // Destroy ALL asteroids on screen with staggered explosions
+            const asteroidsToDestroy = [...this.asteroids];
+            asteroidsToDestroy.forEach((asteroid, index) => {
+                setTimeout(() => {
+                    // Check if asteroid still exists
+                    const asteroidIndex = this.asteroids.findIndex(a => a.id === asteroid.id);
+                    if (asteroidIndex !== -1) {
+                        // Remove asteroid
+                        this.asteroids.splice(asteroidIndex, 1);
+                        this.asteroidsDestroyed++;
+                        
+                        // Purple explosion effect
+                        this.particles.explosion(asteroid.x, asteroid.y, {
+                            count: 25,
+                            colors: ['#ff00ff', '#ff88ff', '#ffffff', '#ffcc00'],
+                            speed: 250,
+                            size: 10,
+                            life: 0.8
+                        });
+                        
+                        // Ring effect
+                        this.particles.ring(asteroid.x, asteroid.y, {
+                            count: 15,
+                            color: '#ff00ff',
+                            speed: 200
+                        });
+                        
+                        // Score bonus for each destroyed
+                        this.score += 50;
+                        this.game.showScorePopup(asteroid.x, asteroid.y, 50);
+                    }
+                }, index * 50); // Stagger by 50ms each
+            });
+            
+            // Large ring explosion at center after all asteroids destroyed
+            setTimeout(() => {
+                this.particles.ring(this.canvas.width / 2, this.canvas.height / 2, {
+                    count: 60,
+                    color: '#ff00ff',
+                    speed: 500
+                });
+                AudioManager.playExplosion('large');
+                strike.active = false;
+            }, asteroidsToDestroy.length * 50 + 200);
         }
     }
     
@@ -720,13 +758,13 @@ class AsteroidDefenseLevel {
     }
     
     checkPowerUps() {
-        // Missile unlocks at 10 combo
+        // Missile unlocks at 5 combo
         if (this.combo >= this.powerUps.missile.comboRequired && !this.powerUps.missile.ready) {
             this.powerUps.missile.ready = true;
             this.showPowerUpNotification(this.powerUps.missile);
         }
         
-        // Laser unlocks at 15 combo
+        // Laser unlocks at 10 combo
         if (this.combo >= this.powerUps.laser.comboRequired && !this.powerUps.laser.active && !this.powerUps.laser.ready) {
             this.powerUps.laser.ready = true;
             this.powerUps.laser.active = true;
@@ -735,14 +773,14 @@ class AsteroidDefenseLevel {
             this.showPowerUpNotification(this.powerUps.laser);
         }
         
-        // Shield becomes AVAILABLE at 20 combo (player must press SPACE to activate)
+        // Orbital Strike becomes AVAILABLE at 15 combo (player must press SPACE to activate)
         // Only if not already used this game
-        if (this.combo >= this.powerUps.shield.comboRequired && 
-            !this.powerUps.shield.available && 
-            !this.powerUps.shield.active && 
-            !this.powerUps.shield.used) {
-            this.powerUps.shield.available = true;
-            this.showShieldAvailableNotification();
+        if (this.combo >= this.powerUps.orbitalStrike.comboRequired && 
+            !this.powerUps.orbitalStrike.available && 
+            !this.powerUps.orbitalStrike.active && 
+            !this.powerUps.orbitalStrike.used) {
+            this.powerUps.orbitalStrike.available = true;
+            this.showOrbitalStrikeAvailableNotification();
         }
     }
     
@@ -768,26 +806,29 @@ class AsteroidDefenseLevel {
         });
     }
     
-    showShieldAvailableNotification() {
-        // Special notification for shield
+    showOrbitalStrikeAvailableNotification() {
+        // Special notification for orbital strike
         this.powerUpIndicators.push({
-            text: '🛡️ SHIELD EARNED! Press SPACE to activate!',
+            text: '💥 ORBITAL STRIKE READY! Press SPACE!',
             x: this.canvas.width / 2,
             y: this.canvas.height / 2 - 50,
             alpha: 1,
-            scale: 1.5,
+            scale: 1.8,
             life: 3
         });
         
         // Play power-up sound
         AudioManager.playPowerUp();
         
-        // Visual effect
-        this.particles.ring(this.earth.x, this.cannon.y, {
-            count: 40,
-            color: '#44ff88',
-            speed: 350
+        // Visual effect - purple rings
+        this.particles.ring(this.cannon.x, this.cannon.y, {
+            count: 50,
+            color: '#ff00ff',
+            speed: 400
         });
+        
+        // Flash screen
+        this.game.flashScreen('#ff00ff');
     }
     
     recordMiss(letter) {
@@ -797,7 +838,7 @@ class AsteroidDefenseLevel {
         // Reset power-up readiness (lose power-ups on miss)
         this.powerUps.missile.ready = false;
         // Laser stays active if already activated
-        // Shield availability is NOT lost on miss (it's a strategic save)
+        // Orbital Strike availability is NOT lost on miss (it's a strategic save)
         
         AudioManager.playWrong();
         
@@ -838,14 +879,7 @@ class AsteroidDefenseLevel {
     }
     
     asteroidReachedEarth(asteroid) {
-        // Check if shield is active
-        if (this.powerUps.shield.active) {
-            // Shield absorbs the hit with visual effect
-            this.shieldDestroyAsteroid(asteroid);
-            return;
-        }
-        
-        // Damage Earth
+        // Damage Earth (no shield protection now - orbital strike is offensive)
         const damage = 20;
         this.earthHealth = Math.max(0, this.earthHealth - damage);
         
@@ -938,17 +972,9 @@ class AsteroidDefenseLevel {
             }
         }
         
-        // Shield timer - deactivate after duration
-        if (this.powerUps.shield.active) {
-            const elapsed = currentTime - this.powerUps.shield.activatedAt;
-            if (elapsed >= this.powerUps.shield.duration) {
-                this.powerUps.shield.active = false;
-            }
-        }
-        
-        // Update shield pulse animation (when available but not active)
-        if (this.powerUps.shield.available && !this.powerUps.shield.active) {
-            this.powerUps.shield.pulsePhase += dt * 4;
+        // Update orbital strike pulse animation (when available but not active)
+        if (this.powerUps.orbitalStrike.available && !this.powerUps.orbitalStrike.active) {
+            this.powerUps.orbitalStrike.pulsePhase += dt * 4;
         }
         
         // Update hyper laser beams (fade out)
@@ -1127,10 +1153,7 @@ class AsteroidDefenseLevel {
         ctx.fillStyle = earthGradient;
         ctx.fillRect(0, this.canvas.height - 200, this.canvas.width, 200);
         
-        // === DRAW FORCE SHIELD DOME (when active) ===
-        if (this.powerUps.shield.active) {
-            this.drawShieldDome(ctx);
-        }
+        // No shield dome anymore - orbital strike is offensive only
         
         // Draw Earth surface (curved line at bottom)
         ctx.save();
@@ -1406,9 +1429,9 @@ class AsteroidDefenseLevel {
         // Draw power-up indicators
         this.drawPowerUpStatus(ctx);
         
-        // Draw shield available indicator (pulsing when ready)
-        if (this.powerUps.shield.available && !this.powerUps.shield.active) {
-            this.drawShieldAvailableIndicator(ctx);
+        // Draw orbital strike available indicator (pulsing when ready)
+        if (this.powerUps.orbitalStrike.available && !this.powerUps.orbitalStrike.active) {
+            this.drawOrbitalStrikeAvailableIndicator(ctx);
         }
         
         // Draw floating power-up notifications
@@ -1576,9 +1599,9 @@ class AsteroidDefenseLevel {
         ctx.restore();
     }
     
-    // Draw pulsing indicator when shield is available
-    drawShieldAvailableIndicator(ctx) {
-        const pulse = 0.5 + 0.5 * Math.sin(this.powerUps.shield.pulsePhase);
+    // Draw pulsing indicator when orbital strike is available
+    drawOrbitalStrikeAvailableIndicator(ctx) {
+        const pulse = 0.5 + 0.5 * Math.sin(this.powerUps.orbitalStrike.pulsePhase);
         
         ctx.save();
         
@@ -1586,29 +1609,31 @@ class AsteroidDefenseLevel {
         const x = this.canvas.width / 2;
         const y = this.canvas.height - 100;
         
-        // Background
-        ctx.globalAlpha = 0.8;
-        ctx.fillStyle = `rgba(68, 255, 136, ${0.2 + pulse * 0.2})`;
-        ctx.strokeStyle = '#44ff88';
-        ctx.lineWidth = 2 + pulse * 2;
+        // Background with purple glow
+        ctx.globalAlpha = 0.9;
+        ctx.fillStyle = `rgba(255, 0, 255, ${0.2 + pulse * 0.3})`;
+        ctx.strokeStyle = '#ff00ff';
+        ctx.lineWidth = 3 + pulse * 3;
+        ctx.shadowColor = '#ff00ff';
+        ctx.shadowBlur = 20 + pulse * 20;
         
         // Rounded rect
-        const width = 280;
-        const height = 40;
+        const width = 320;
+        const height = 45;
         ctx.beginPath();
-        ctx.roundRect(x - width/2, y - height/2, width, height, 10);
+        ctx.roundRect(x - width/2, y - height/2, width, height, 12);
         ctx.fill();
         ctx.stroke();
         
         // Text
         ctx.globalAlpha = 1;
         ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 16px "Orbitron", sans-serif';
+        ctx.font = 'bold 18px "Orbitron", sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.shadowColor = '#44ff88';
-        ctx.shadowBlur = 10 + pulse * 10;
-        ctx.fillText('🛡️ PRESS SPACE FOR SHIELD! 🛡️', x, y);
+        ctx.shadowColor = '#ff00ff';
+        ctx.shadowBlur = 15 + pulse * 15;
+        ctx.fillText('💥 PRESS SPACE FOR ORBITAL STRIKE! 💥', x, y);
         
         ctx.restore();
     }
@@ -1624,12 +1649,14 @@ class AsteroidDefenseLevel {
         ctx.fillText('WORD:', centerX - 80, y);
         
         // Draw the word with typed/untyped highlighting
+        // Use typedLetterCount for accurate display of progress
         let x = centerX - 40;
         for (let i = 0; i < this.currentWord.length; i++) {
             const letter = this.currentWord[i];
-            if (i < this.currentWordIndex) {
+            if (i < this.typedLetterCount) {
                 ctx.fillStyle = '#44ff88'; // Typed - green
-            } else if (i === this.currentWordIndex) {
+                ctx.shadowBlur = 0;
+            } else if (i === this.typedLetterCount) {
                 ctx.fillStyle = '#ffd700'; // Current - gold
                 ctx.shadowColor = '#ffd700';
                 ctx.shadowBlur = 10;
@@ -1637,7 +1664,7 @@ class AsteroidDefenseLevel {
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.4)'; // Upcoming - dim
                 ctx.shadowBlur = 0;
             }
-            ctx.font = i === this.currentWordIndex ? 'bold 22px "Arial Black", sans-serif' : 'bold 18px "Exo 2", sans-serif';
+            ctx.font = i === this.typedLetterCount ? 'bold 22px "Arial Black", sans-serif' : 'bold 18px "Exo 2", sans-serif';
             ctx.fillText(letter, x, y);
             x += 25;
             ctx.shadowBlur = 0;
@@ -1696,32 +1723,28 @@ class AsteroidDefenseLevel {
             offsetY += 35;
         }
         
-        // Shield status (shows progress toward earning, or AVAILABLE)
-        const shield = this.powerUps.shield;
-        if (!shield.used || shield.available || shield.active) {
-            const showProgress = this.combo >= shield.comboRequired * 0.3 || shield.available || shield.active;
+        // Orbital Strike status (shows progress toward earning, or AVAILABLE)
+        const strike = this.powerUps.orbitalStrike;
+        if (!strike.used || strike.available) {
+            const showProgress = this.combo >= strike.comboRequired * 0.3 || strike.available;
             if (showProgress) {
-                ctx.globalAlpha = (shield.available || shield.active) ? 1 : 0.4;
-                ctx.fillStyle = (shield.available || shield.active) ? shield.color + '44' : 'rgba(0, 0, 0, 0.5)';
-                ctx.fillRect(startX, y + offsetY, 140, 30);
-                ctx.strokeStyle = (shield.available || shield.active) ? shield.color : '#666';
+                ctx.globalAlpha = strike.available ? 1 : 0.4;
+                ctx.fillStyle = strike.available ? strike.color + '44' : 'rgba(0, 0, 0, 0.5)';
+                ctx.fillRect(startX, y + offsetY, 150, 30);
+                ctx.strokeStyle = strike.available ? strike.color : '#666';
                 ctx.lineWidth = 2;
-                ctx.strokeRect(startX, y + offsetY, 140, 30);
+                ctx.strokeRect(startX, y + offsetY, 150, 30);
                 ctx.font = '14px "Exo 2", sans-serif';
-                ctx.fillStyle = (shield.available || shield.active) ? '#ffffff' : '#888';
+                ctx.fillStyle = strike.available ? '#ffffff' : '#888';
                 ctx.textAlign = 'left';
-                ctx.fillText(`${shield.icon} ${shield.name}`, startX + 5, y + offsetY + 20);
+                ctx.fillText(`${strike.icon} ${strike.name}`, startX + 5, y + offsetY + 20);
                 ctx.textAlign = 'right';
-                if (shield.active) {
-                    const remaining = Math.ceil((shield.duration - (Date.now() - shield.activatedAt)) / 1000);
-                    ctx.fillStyle = '#44ff88';
-                    ctx.fillText(`${remaining}s`, startX + 135, y + offsetY + 20);
-                } else if (shield.available) {
-                    ctx.fillStyle = '#44ff88';
-                    ctx.fillText('SPACE!', startX + 135, y + offsetY + 20);
-                } else if (!shield.used) {
+                if (strike.available) {
+                    ctx.fillStyle = '#ff00ff';
+                    ctx.fillText('SPACE!', startX + 145, y + offsetY + 20);
+                } else if (!strike.used) {
                     ctx.fillStyle = '#888';
-                    ctx.fillText(`${this.combo}/${shield.comboRequired}`, startX + 135, y + offsetY + 20);
+                    ctx.fillText(`${this.combo}/${strike.comboRequired}`, startX + 145, y + offsetY + 20);
                 }
             }
         }

@@ -19,8 +19,57 @@ class GameUI {
         this.currentScreen = null;
     }
     
+    // Check if device is mobile in portrait mode
+    checkMobilePortrait() {
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                         (window.innerWidth <= 768);
+        const isPortrait = window.innerHeight > window.innerWidth;
+        
+        // Return true if we should show the warning
+        return isMobile && isPortrait;
+    }
+    
+    // Show mobile warning modal
+    showMobileWarning(onContinue) {
+        this.overlay.innerHTML = `
+            <div class="mobile-warning-overlay">
+                <div class="mobile-warning-modal">
+                    <div class="warning-icon">⌨️</div>
+                    <h2>Physical Keyboard Recommended</h2>
+                    <p>Cosmic Typer is a typing game designed to be played with a physical keyboard.</p>
+                    <p>For the best experience:</p>
+                    <ul>
+                        <li>🖥️ Use a computer with a keyboard</li>
+                        <li>📱 Or connect a Bluetooth keyboard to your device</li>
+                        <li>🔄 Or rotate to landscape mode</li>
+                    </ul>
+                    <div class="warning-buttons">
+                        <button class="cosmic-btn primary" id="continue-anyway-btn">
+                            Continue Anyway
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('continue-anyway-btn').addEventListener('click', () => {
+            AudioManager.playClick();
+            if (onContinue) onContinue();
+        });
+    }
+    
     // Show welcome screen (first time)
     showWelcomeScreen() {
+        // Check for mobile portrait mode
+        if (this.checkMobilePortrait()) {
+            this.showMobileWarning(() => this.showWelcomeScreenContent());
+            return;
+        }
+        this.showWelcomeScreenContent();
+    }
+    
+    // Actual welcome screen content
+    showWelcomeScreenContent() {
         this.clear();
         this.currentScreen = 'welcome';
         
@@ -238,6 +287,17 @@ class GameUI {
     
     // Show main menu
     showMainMenu() {
+        // Check for mobile portrait mode (only first time in session)
+        if (this.checkMobilePortrait() && !this.mobileWarningShown) {
+            this.mobileWarningShown = true;
+            this.showMobileWarning(() => this.showMainMenuContent());
+            return;
+        }
+        this.showMainMenuContent();
+    }
+    
+    // Actual main menu content
+    showMainMenuContent() {
         this.clear();
         this.currentScreen = 'mainMenu';
         

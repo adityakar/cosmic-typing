@@ -36,7 +36,7 @@ class RocketLaunchLevel {
             fuel: 0,
             maxFuel: 100,
             altitude: 0,
-            targetAltitude: 1000, // Distance to moon
+            targetAltitude: 1500, // Distance to moon (increased from 1000)
             velocity: 0,
             maxVelocity: 500,
             shake: 0,
