@@ -449,11 +449,21 @@ class RocketLaunchLevel {
         const previousAltitude = this.rocket.altitude;
         this.rocket.altitude += this.rocket.velocity * dt;
         
-        // Check if rocket crashed (went below 0)
-        if (this.rocket.altitude < 0 && this.rocket.isFalling) {
+        // CLAMP altitude to minimum 0 - rocket cannot go below ground level
+        // This keeps the rocket visible and gives player a chance to recover
+        if (this.rocket.altitude < 0) {
             this.rocket.altitude = 0;
-            this.gameOver(false);
-            return;
+            
+            // If still falling when hitting ground, it's game over
+            if (this.rocket.isFalling && this.rocket.velocity < -50) {
+                this.gameOver(false);
+                return;
+            }
+            
+            // Stop falling velocity when at ground
+            if (this.rocket.velocity < 0) {
+                this.rocket.velocity = 0;
+            }
         }
         
         // Check victory (reached moon)
@@ -462,11 +472,11 @@ class RocketLaunchLevel {
             return;
         }
         
-        // Set critical altitude warning
-        this.criticalAltitude = this.rocket.isFalling && this.rocket.altitude < previousAltitude * 0.3;
+        // Set critical altitude warning when low and falling
+        this.criticalAltitude = this.rocket.isFalling && this.rocket.altitude < 100;
         
         // Update stage based on altitude
-        const altitudePercent = this.rocket.altitude / this.rocket.targetAltitude;
+        const altitudePercent = Math.max(0, this.rocket.altitude / this.rocket.targetAltitude);
         if (altitudePercent < 0.15) {
             this.stage = 'launchpad';
         } else if (altitudePercent < 0.4) {
@@ -478,13 +488,25 @@ class RocketLaunchLevel {
         }
         this.stageProgress = altitudePercent;
         
-        // Update rocket visual position
+        // Update rocket visual position - CLAMPED to stay on screen
+        // The rocket stays at the bottom when altitude is 0, and rises with altitude
+        const minY = this.canvas.height - 200; // Ground position
+        const maxY = this.canvas.height * 0.3;  // Highest visual position
+        
+        // Map altitude to visual position, clamped to screen bounds
         this.rocket.targetY = Utils.lerp(
-            this.canvas.height - 200,
-            this.canvas.height * 0.3,
-            Math.min(1, altitudePercent * 2)
+            minY,
+            maxY,
+            Math.min(1, Math.max(0, altitudePercent * 2))
         );
+        
+        // Ensure rocket never goes below the ground visually
+        this.rocket.targetY = Math.min(this.rocket.targetY, minY);
+        
         this.rocket.y += (this.rocket.targetY - this.rocket.y) * 5 * dt;
+        
+        // Clamp final Y position to stay on screen
+        this.rocket.y = Math.min(this.rocket.y, this.canvas.height - 100);
         
         // Decay engine power
         this.rocket.enginePower *= 0.95;
@@ -736,8 +758,11 @@ class RocketLaunchLevel {
     }
     
     drawFallingWarning(ctx) {
-        // Flashing warning overlay
-        const alpha = 0.2 + 0.1 * Math.sin(Date.now() / 100);
+        const time = Date.now();
+        
+        // Flashing warning overlay - more intense when closer to ground
+        const dangerLevel = 1 - Math.min(1, this.rocket.altitude / 200);
+        const alpha = (0.15 + 0.15 * Math.sin(time / 80)) * (0.5 + dangerLevel * 0.5);
         
         ctx.save();
         ctx.globalAlpha = alpha;
@@ -745,14 +770,39 @@ class RocketLaunchLevel {
         ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         ctx.restore();
         
-        // Warning text
+        // Warning border flash
         ctx.save();
-        ctx.font = 'bold 32px "Orbitron", sans-serif';
+        ctx.globalAlpha = 0.5 + 0.5 * Math.sin(time / 100);
+        ctx.strokeStyle = '#ff4444';
+        ctx.lineWidth = 10;
+        ctx.strokeRect(5, 5, this.canvas.width - 10, this.canvas.height - 10);
+        ctx.restore();
+        
+        // Main warning text - pulsing
+        ctx.save();
+        const textPulse = 1 + 0.1 * Math.sin(time / 100);
+        ctx.font = `bold ${Math.round(32 * textPulse)}px "Orbitron", sans-serif`;
         ctx.textAlign = 'center';
         ctx.fillStyle = '#ff4444';
         ctx.shadowColor = '#ff0000';
-        ctx.shadowBlur = 20;
+        ctx.shadowBlur = 30;
         ctx.fillText('⚠️ FALLING! TYPE TO ADD FUEL! ⚠️', this.canvas.width / 2, 60);
+        
+        // Additional altitude warning when critical
+        if (this.rocket.altitude < 100) {
+            ctx.font = 'bold 24px "Orbitron", sans-serif';
+            ctx.fillStyle = '#ffcc00';
+            ctx.shadowColor = '#ff8800';
+            ctx.fillText(`ALTITUDE: ${Math.round(this.rocket.altitude)}m - CRASH IMMINENT!`, this.canvas.width / 2, 95);
+        }
+        
+        // Down arrow indicators on sides
+        ctx.globalAlpha = 0.5 + 0.5 * Math.sin(time / 150);
+        ctx.fillStyle = '#ff4444';
+        ctx.font = 'bold 40px sans-serif';
+        ctx.fillText('⬇', 50, this.canvas.height / 2);
+        ctx.fillText('⬇', this.canvas.width - 50, this.canvas.height / 2);
+        
         ctx.restore();
     }
     

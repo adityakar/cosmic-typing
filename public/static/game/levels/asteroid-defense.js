@@ -48,6 +48,9 @@ class AsteroidDefenseLevel {
         // Projectiles
         this.projectiles = [];
         
+        // === HYPER LASER BEAMS (visual effect storage) ===
+        this.hyperLaserBeams = [];
+        
         // Difficulty settings based on player
         this.difficulty = game.player.getDifficulty();
         this.letters = Utils.getLettersByDifficulty(this.difficulty);
@@ -99,16 +102,18 @@ class AsteroidDefenseLevel {
                 activatedAt: 0,
                 color: '#00ffff'
             },
-            // Shield Boost: Temporary invulnerability
+            // Shield Boost: Activated by SPACEBAR, one-time use per game
             shield: {
                 name: 'Force Shield',
                 icon: '🛡️',
-                active: false,
-                ready: false,
+                available: false, // Earned but not yet activated
+                active: false,    // Currently providing protection
+                used: false,      // Already used this game (one-time only)
                 comboRequired: 20,
                 duration: 5000,
                 activatedAt: 0,
-                color: '#44ff88'
+                color: '#44ff88',
+                pulsePhase: 0     // For pulsing animation when available
             }
         };
         this.activePowerUp = null;
@@ -151,6 +156,7 @@ class AsteroidDefenseLevel {
         // Reset state
         this.asteroids = [];
         this.projectiles = [];
+        this.hyperLaserBeams = [];
         this.score = 0;
         this.combo = 0;
         this.maxCombo = 0;
@@ -172,10 +178,17 @@ class AsteroidDefenseLevel {
         }
         
         // Reset power-ups
-        Object.values(this.powerUps).forEach(pu => {
-            pu.active = false;
-            pu.ready = false;
-        });
+        this.powerUps.missile.active = false;
+        this.powerUps.missile.ready = false;
+        this.powerUps.laser.active = false;
+        this.powerUps.laser.ready = false;
+        this.powerUps.laser.shotsRemaining = 0;
+        // Shield: reset for new game
+        this.powerUps.shield.available = false;
+        this.powerUps.shield.active = false;
+        this.powerUps.shield.used = false;
+        this.powerUps.shield.pulsePhase = 0;
+        
         this.activePowerUp = null;
         this.powerUpIndicators = [];
     }
@@ -258,7 +271,15 @@ class AsteroidDefenseLevel {
     handleKeyPress(key) {
         if (this.state !== 'playing') return;
         
-        const pressedLetter = key.toUpperCase();
+        const pressedKey = key.toUpperCase();
+        
+        // === SPACEBAR: Activate Force Shield ===
+        if (key === ' ' || key === 'Space') {
+            this.tryActivateShield();
+            return;
+        }
+        
+        const pressedLetter = pressedKey;
         
         // Find asteroid with matching letter (closest to bottom)
         let matchingAsteroid = null;
@@ -284,43 +305,200 @@ class AsteroidDefenseLevel {
         }
     }
     
+    // === SHIELD ACTIVATION (SPACEBAR) ===
+    tryActivateShield() {
+        const shield = this.powerUps.shield;
+        
+        // Check if shield is available and not used
+        if (shield.available && !shield.active && !shield.used) {
+            // Activate the shield!
+            shield.active = true;
+            shield.used = true;
+            shield.available = false;
+            shield.activatedAt = Date.now();
+            
+            // Play shield activation sound
+            AudioManager.playShieldActivate();
+            
+            // Big visual effect - multiple rings expanding outward
+            for (let i = 0; i < 3; i++) {
+                setTimeout(() => {
+                    this.particles.ring(this.earth.x, this.cannon.y - 50, {
+                        count: 40 - i * 10,
+                        color: '#44ff88',
+                        speed: 350 - i * 50
+                    });
+                }, i * 100);
+            }
+            
+            // Shield formation particles rising from ground
+            for (let i = 0; i < 30; i++) {
+                const angle = (Math.PI / 12) * i - Math.PI;
+                const radius = this.earth.radius + 50;
+                const x = this.earth.x + Math.cos(angle) * radius;
+                const y = this.earth.y + 170 + Math.sin(angle) * radius;
+                
+                this.particles.addParticle(new Particle(x, y, {
+                    vx: Math.cos(angle) * 50,
+                    vy: Math.sin(angle) * 50 - 100,
+                    life: 0.8,
+                    size: Utils.random(5, 10),
+                    endSize: 0,
+                    color: Utils.randomChoice(['#44ff88', '#88ffaa', '#ffffff']),
+                    glow: true,
+                    glowSize: 15
+                }));
+            }
+            
+            // Screen effect - green tint
+            this.game.flashScreen('#44ff88');
+            
+            // Screen shake for impact
+            this.game.screenShake.start(8, 300);
+            
+            // Notification
+            this.powerUpIndicators.push({
+                text: '🛡️ FORCE SHIELD ACTIVATED!',
+                x: this.canvas.width / 2,
+                y: this.canvas.height / 2 - 50,
+                alpha: 1,
+                scale: 2,
+                life: 2.5
+            });
+        }
+    }
+    
     destroyAsteroid(asteroid) {
         // Aim cannon at asteroid
         this.aimCannon(asteroid);
         
         // Check for active power-ups
         if (this.powerUps.laser.active && this.powerUps.laser.shotsRemaining > 0) {
-            // Instant laser - immediate destruction
-            this.fireInstantLaser(asteroid);
+            // Instant laser - immediate destruction with visual beam
+            this.fireHyperLaser(asteroid);
         } else if (this.powerUps.missile.ready && this.combo >= this.powerUps.missile.comboRequired) {
             // Missile ready - AoE blast
             this.fireMissile(asteroid);
         } else {
             // Normal projectile
             this.fireProjectile(asteroid);
+            // Play laser sound
+            AudioManager.playLaser();
         }
-        
-        // Play laser sound
-        AudioManager.playLaser();
     }
     
-    fireInstantLaser(asteroid) {
-        // Instant beam effect - no projectile travel time
+    // === HYPER LASER with enhanced visual beam effect ===
+    fireHyperLaser(asteroid) {
         this.powerUps.laser.shotsRemaining--;
         
-        // Draw instant beam (visual only)
-        this.particles.fire(
-            this.cannon.x,
-            this.cannon.y,
-            Math.atan2(asteroid.y - this.cannon.y, asteroid.x - this.cannon.x),
-            { count: 20, speed: 600, colors: ['#00ffff', '#ffffff', '#00ff88'] }
-        );
+        // Calculate beam path from cannon tip to asteroid
+        const startX = this.cannon.x + Math.cos(this.cannon.targetAngle) * this.cannon.length;
+        const startY = this.cannon.y + Math.sin(this.cannon.targetAngle) * this.cannon.length;
+        const endX = asteroid.x;
+        const endY = asteroid.y;
         
-        // Immediate explosion
+        // Create main visual beam with multiple layers for depth
+        this.hyperLaserBeams.push({
+            startX: startX,
+            startY: startY,
+            endX: endX,
+            endY: endY,
+            width: 25,           // Thick main beam
+            alpha: 1.0,
+            life: 0.5,           // Lasts 500ms for more visibility
+            maxLife: 0.5,
+            color: '#00ffff',
+            coreColor: '#ffffff',
+            outerColor: '#0088ff',
+            pulsePhase: 0,       // For animated pulsing
+            type: 'main'
+        });
+        
+        // Create secondary beam trails for extra visual punch
+        for (let i = 0; i < 2; i++) {
+            const offset = (i - 0.5) * 8;
+            const perpAngle = Math.atan2(endY - startY, endX - startX) + Math.PI / 2;
+            this.hyperLaserBeams.push({
+                startX: startX + Math.cos(perpAngle) * offset,
+                startY: startY + Math.sin(perpAngle) * offset,
+                endX: endX + Math.cos(perpAngle) * offset * 0.5,
+                endY: endY + Math.sin(perpAngle) * offset * 0.5,
+                width: 8,
+                alpha: 0.7,
+                life: 0.4,
+                maxLife: 0.4,
+                color: '#00ff88',
+                coreColor: '#ffffff',
+                type: 'trail'
+            });
+        }
+        
+        // Dense particles along the beam path for energy effect
+        const distance = Utils.distance(startX, startY, endX, endY);
+        const beamAngle = Math.atan2(endY - startY, endX - startX);
+        const particleCount = Math.floor(distance / 12);
+        
+        for (let i = 0; i < particleCount; i++) {
+            const t = i / particleCount;
+            const px = startX + (endX - startX) * t;
+            const py = startY + (endY - startY) * t;
+            
+            // Particles perpendicular to beam
+            const perpOffset = Utils.random(-15, 15);
+            const perpAngle = beamAngle + Math.PI / 2;
+            
+            this.particles.addParticle(new Particle(
+                px + Math.cos(perpAngle) * perpOffset,
+                py + Math.sin(perpAngle) * perpOffset,
+                {
+                    vx: Utils.random(-80, 80),
+                    vy: Utils.random(-80, 80),
+                    life: Utils.random(0.2, 0.5),
+                    size: Utils.random(4, 10),
+                    endSize: 0,
+                    color: Utils.randomChoice(['#00ffff', '#ffffff', '#00ff88', '#88ffff']),
+                    glow: true,
+                    glowSize: 15
+                }
+            ));
+        }
+        
+        // Large cannon muzzle flash
+        this.particles.explosion(startX, startY, {
+            count: 25,
+            colors: ['#00ffff', '#ffffff', '#00ff88', '#0088ff'],
+            speed: 400,
+            size: 15,
+            life: 0.4
+        });
+        
+        // Impact flash at asteroid location
+        this.particles.explosion(endX, endY, {
+            count: 30,
+            colors: ['#00ffff', '#ffffff', '#ffff00'],
+            speed: 350,
+            size: 12,
+            life: 0.5
+        });
+        
+        // Electric arc effect at impact
+        this.particles.ring(endX, endY, {
+            count: 20,
+            color: '#00ffff',
+            speed: 250
+        });
+        
+        // Play hyper laser sound (distinct high-energy beam)
+        AudioManager.playHyperLaser();
+        
+        // Immediate explosion at asteroid with extra flair
         this.explodeAsteroid(asteroid);
         
-        // Special laser sound
-        AudioManager.playPowerUp();
+        // Strong screen shake for impact
+        this.game.screenShake.start(10, 250);
+        
+        // Flash screen with cyan tint
+        this.game.flashScreen('#00ffff');
         
         // Check if laser shots depleted
         if (this.powerUps.laser.shotsRemaining <= 0) {
@@ -557,12 +735,14 @@ class AsteroidDefenseLevel {
             this.showPowerUpNotification(this.powerUps.laser);
         }
         
-        // Shield unlocks at 20 combo
-        if (this.combo >= this.powerUps.shield.comboRequired && !this.powerUps.shield.active && !this.powerUps.shield.ready) {
-            this.powerUps.shield.ready = true;
-            this.powerUps.shield.active = true;
-            this.powerUps.shield.activatedAt = Date.now();
-            this.showPowerUpNotification(this.powerUps.shield);
+        // Shield becomes AVAILABLE at 20 combo (player must press SPACE to activate)
+        // Only if not already used this game
+        if (this.combo >= this.powerUps.shield.comboRequired && 
+            !this.powerUps.shield.available && 
+            !this.powerUps.shield.active && 
+            !this.powerUps.shield.used) {
+            this.powerUps.shield.available = true;
+            this.showShieldAvailableNotification();
         }
     }
     
@@ -588,13 +768,36 @@ class AsteroidDefenseLevel {
         });
     }
     
+    showShieldAvailableNotification() {
+        // Special notification for shield
+        this.powerUpIndicators.push({
+            text: '🛡️ SHIELD EARNED! Press SPACE to activate!',
+            x: this.canvas.width / 2,
+            y: this.canvas.height / 2 - 50,
+            alpha: 1,
+            scale: 1.5,
+            life: 3
+        });
+        
+        // Play power-up sound
+        AudioManager.playPowerUp();
+        
+        // Visual effect
+        this.particles.ring(this.earth.x, this.cannon.y, {
+            count: 40,
+            color: '#44ff88',
+            speed: 350
+        });
+    }
+    
     recordMiss(letter) {
         this.combo = 0;
         this.wrongCount++;
         
         // Reset power-up readiness (lose power-ups on miss)
         this.powerUps.missile.ready = false;
-        // Laser and shield stay active if already activated
+        // Laser stays active if already activated
+        // Shield availability is NOT lost on miss (it's a strategic save)
         
         AudioManager.playWrong();
         
@@ -637,21 +840,8 @@ class AsteroidDefenseLevel {
     asteroidReachedEarth(asteroid) {
         // Check if shield is active
         if (this.powerUps.shield.active) {
-            // Shield absorbs the hit
-            this.particles.explosion(asteroid.x, asteroid.y, {
-                count: 20,
-                colors: ['#44ff88', '#00ffff', '#ffffff'],
-                speed: 200,
-                size: 8
-            });
-            
-            // Remove asteroid
-            const index = this.asteroids.findIndex(a => a.id === asteroid.id);
-            if (index !== -1) {
-                this.asteroids.splice(index, 1);
-            }
-            
-            AudioManager.playPowerUp();
+            // Shield absorbs the hit with visual effect
+            this.shieldDestroyAsteroid(asteroid);
             return;
         }
         
@@ -696,6 +886,38 @@ class AsteroidDefenseLevel {
         }
     }
     
+    // Shield destroys asteroid with special effect
+    shieldDestroyAsteroid(asteroid) {
+        // Remove asteroid
+        const index = this.asteroids.findIndex(a => a.id === asteroid.id);
+        if (index !== -1) {
+            this.asteroids.splice(index, 1);
+        }
+        
+        // Shield reflection effect - green explosion
+        this.particles.explosion(asteroid.x, asteroid.y, {
+            count: 30,
+            colors: ['#44ff88', '#00ffff', '#ffffff', '#88ffaa'],
+            speed: 300,
+            size: 10,
+            life: 0.8
+        });
+        
+        // Shield ripple at impact point
+        this.particles.ring(asteroid.x, asteroid.y, {
+            count: 20,
+            color: '#44ff88',
+            speed: 200
+        });
+        
+        // Play shield deflect sound
+        AudioManager.playShieldDeflect();
+        
+        // Small score bonus for shield block
+        this.score += 25;
+        this.game.showScorePopup(asteroid.x, asteroid.y, 25);
+    }
+    
     update(dt, currentTime) {
         if (this.state !== 'playing') return;
         
@@ -716,11 +938,28 @@ class AsteroidDefenseLevel {
             }
         }
         
+        // Shield timer - deactivate after duration
         if (this.powerUps.shield.active) {
             const elapsed = currentTime - this.powerUps.shield.activatedAt;
             if (elapsed >= this.powerUps.shield.duration) {
                 this.powerUps.shield.active = false;
-                this.powerUps.shield.ready = false;
+            }
+        }
+        
+        // Update shield pulse animation (when available but not active)
+        if (this.powerUps.shield.available && !this.powerUps.shield.active) {
+            this.powerUps.shield.pulsePhase += dt * 4;
+        }
+        
+        // Update hyper laser beams (fade out)
+        for (let i = this.hyperLaserBeams.length - 1; i >= 0; i--) {
+            const beam = this.hyperLaserBeams[i];
+            beam.life -= dt;
+            beam.alpha = beam.life / beam.maxLife;
+            beam.width = 20 * (beam.life / beam.maxLife) + 5; // Shrink as it fades
+            
+            if (beam.life <= 0) {
+                this.hyperLaserBeams.splice(i, 1);
             }
         }
         
@@ -888,17 +1127,9 @@ class AsteroidDefenseLevel {
         ctx.fillStyle = earthGradient;
         ctx.fillRect(0, this.canvas.height - 200, this.canvas.width, 200);
         
-        // Draw shield effect if active
+        // === DRAW FORCE SHIELD DOME (when active) ===
         if (this.powerUps.shield.active) {
-            const shieldAlpha = 0.3 + 0.1 * Math.sin(Date.now() / 200);
-            ctx.save();
-            ctx.globalAlpha = shieldAlpha;
-            ctx.strokeStyle = '#44ff88';
-            ctx.lineWidth = 5;
-            ctx.beginPath();
-            ctx.arc(this.earth.x, this.earth.y + 170, this.earth.radius + 30, Math.PI, 0, true);
-            ctx.stroke();
-            ctx.restore();
+            this.drawShieldDome(ctx);
         }
         
         // Draw Earth surface (curved line at bottom)
@@ -924,6 +1155,71 @@ class AsteroidDefenseLevel {
         ctx.lineWidth = 5;
         ctx.stroke();
         ctx.restore();
+        
+        // === DRAW HYPER LASER BEAMS (enhanced multi-layer rendering) ===
+        this.hyperLaserBeams.forEach(beam => {
+            ctx.save();
+            
+            const isMain = beam.type === 'main';
+            const pulseIntensity = isMain ? (0.8 + 0.2 * Math.sin(Date.now() / 30)) : 1;
+            
+            // Layer 1: Wide outer glow (very soft)
+            ctx.globalAlpha = beam.alpha * 0.3 * pulseIntensity;
+            ctx.strokeStyle = beam.outerColor || beam.color;
+            ctx.lineWidth = beam.width * 3;
+            ctx.lineCap = 'round';
+            ctx.shadowColor = beam.color;
+            ctx.shadowBlur = 50;
+            ctx.beginPath();
+            ctx.moveTo(beam.startX, beam.startY);
+            ctx.lineTo(beam.endX, beam.endY);
+            ctx.stroke();
+            
+            // Layer 2: Medium glow
+            ctx.globalAlpha = beam.alpha * 0.5 * pulseIntensity;
+            ctx.strokeStyle = beam.color;
+            ctx.lineWidth = beam.width * 1.8;
+            ctx.shadowBlur = 30;
+            ctx.beginPath();
+            ctx.moveTo(beam.startX, beam.startY);
+            ctx.lineTo(beam.endX, beam.endY);
+            ctx.stroke();
+            
+            // Layer 3: Main beam body
+            ctx.globalAlpha = beam.alpha * 0.9 * pulseIntensity;
+            ctx.strokeStyle = beam.color;
+            ctx.lineWidth = beam.width;
+            ctx.shadowBlur = 20;
+            ctx.beginPath();
+            ctx.moveTo(beam.startX, beam.startY);
+            ctx.lineTo(beam.endX, beam.endY);
+            ctx.stroke();
+            
+            // Layer 4: Hot white core
+            ctx.globalAlpha = beam.alpha * pulseIntensity;
+            ctx.strokeStyle = beam.coreColor;
+            ctx.lineWidth = beam.width * 0.35;
+            ctx.shadowColor = '#ffffff';
+            ctx.shadowBlur = 10;
+            ctx.beginPath();
+            ctx.moveTo(beam.startX, beam.startY);
+            ctx.lineTo(beam.endX, beam.endY);
+            ctx.stroke();
+            
+            // Layer 5: Thin bright center line (for main beams only)
+            if (isMain) {
+                ctx.globalAlpha = beam.alpha * 0.8;
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2;
+                ctx.shadowBlur = 5;
+                ctx.beginPath();
+                ctx.moveTo(beam.startX, beam.startY);
+                ctx.lineTo(beam.endX, beam.endY);
+                ctx.stroke();
+            }
+            
+            ctx.restore();
+        });
         
         // Draw projectile trails
         this.projectiles.forEach(proj => {
@@ -1016,7 +1312,6 @@ class AsteroidDefenseLevel {
             ctx.restore(); // Restore from rotation - now we're just translated
             
             // Draw letter WITHOUT rotation (stays upright) - IMPROVED FONT
-            // Using Arial Black / Impact for maximum readability
             const fontSize = Math.round(asteroid.size * 1.1);
             ctx.font = `bold ${fontSize}px "Arial Black", Impact, "Helvetica Neue", Arial, sans-serif`;
             ctx.textAlign = 'center';
@@ -1111,6 +1406,11 @@ class AsteroidDefenseLevel {
         // Draw power-up indicators
         this.drawPowerUpStatus(ctx);
         
+        // Draw shield available indicator (pulsing when ready)
+        if (this.powerUps.shield.available && !this.powerUps.shield.active) {
+            this.drawShieldAvailableIndicator(ctx);
+        }
+        
         // Draw floating power-up notifications
         this.powerUpIndicators.forEach(indicator => {
             ctx.save();
@@ -1128,6 +1428,189 @@ class AsteroidDefenseLevel {
         if (this.useWordMode && this.currentWord) {
             this.drawWordProgress(ctx);
         }
+    }
+    
+    // Draw the force shield dome visual - ENHANCED
+    drawShieldDome(ctx) {
+        const shield = this.powerUps.shield;
+        const elapsed = Date.now() - shield.activatedAt;
+        const remaining = Math.max(0, (shield.duration - elapsed) / shield.duration);
+        
+        ctx.save();
+        
+        // Dynamic pulsing - faster when time is running out
+        const pulseSpeed = remaining < 0.3 ? 50 : 100;
+        const pulse = 0.6 + 0.4 * Math.sin(elapsed / pulseSpeed);
+        
+        // Shield dome parameters
+        const domeRadius = this.earth.radius + 60;
+        const domeY = this.earth.y + 170;
+        const centerX = this.earth.x;
+        
+        // Layer 1: Very wide outer glow (atmosphere effect)
+        const outerGlow = ctx.createRadialGradient(
+            centerX, domeY, domeRadius * 0.3,
+            centerX, domeY - domeRadius * 0.5, domeRadius * 1.5
+        );
+        outerGlow.addColorStop(0, 'rgba(68, 255, 136, 0)');
+        outerGlow.addColorStop(0.5, `rgba(68, 255, 136, ${0.15 * pulse * remaining})`);
+        outerGlow.addColorStop(1, 'rgba(68, 255, 136, 0)');
+        ctx.fillStyle = outerGlow;
+        ctx.beginPath();
+        ctx.arc(centerX, domeY, domeRadius * 1.5, Math.PI, 0, true);
+        ctx.fill();
+        
+        // Layer 2: Outer dome stroke with glow
+        ctx.globalAlpha = pulse * 0.4 * remaining;
+        ctx.strokeStyle = '#44ff88';
+        ctx.lineWidth = 25;
+        ctx.shadowColor = '#44ff88';
+        ctx.shadowBlur = 50;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.arc(centerX, domeY, domeRadius + 20, Math.PI, 0, true);
+        ctx.stroke();
+        
+        // Layer 3: Main dome arc
+        ctx.globalAlpha = pulse * 0.7 * remaining;
+        ctx.strokeStyle = '#44ff88';
+        ctx.lineWidth = 10;
+        ctx.shadowBlur = 30;
+        ctx.beginPath();
+        ctx.arc(centerX, domeY, domeRadius, Math.PI, 0, true);
+        ctx.stroke();
+        
+        // Layer 4: Inner bright dome
+        ctx.globalAlpha = pulse * 0.9 * remaining;
+        ctx.strokeStyle = '#88ffaa';
+        ctx.lineWidth = 4;
+        ctx.shadowBlur = 15;
+        ctx.beginPath();
+        ctx.arc(centerX, domeY, domeRadius - 15, Math.PI, 0, true);
+        ctx.stroke();
+        
+        // Layer 5: White hot inner core line
+        ctx.globalAlpha = pulse * 0.6 * remaining;
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.shadowColor = '#ffffff';
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(centerX, domeY, domeRadius - 25, Math.PI, 0, true);
+        ctx.stroke();
+        
+        // Hexagonal grid pattern on dome surface
+        ctx.globalAlpha = pulse * 0.35 * remaining;
+        ctx.strokeStyle = '#44ff88';
+        ctx.lineWidth = 1.5;
+        ctx.shadowBlur = 5;
+        
+        // Vertical ribs
+        const ribCount = 16;
+        for (let i = 0; i <= ribCount; i++) {
+            const angle = Math.PI + (Math.PI / ribCount) * i;
+            const x1 = centerX + Math.cos(angle) * domeRadius;
+            const y1 = domeY + Math.sin(angle) * domeRadius;
+            const x2 = centerX + Math.cos(angle) * (domeRadius * 0.4);
+            const y2 = domeY + Math.sin(angle) * (domeRadius * 0.4);
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+        }
+        
+        // Horizontal rings
+        for (let r = 0.5; r < 1; r += 0.25) {
+            ctx.beginPath();
+            ctx.arc(centerX, domeY, domeRadius * r, Math.PI, 0, true);
+            ctx.stroke();
+        }
+        
+        // Energy particles floating on dome surface
+        const particleTime = elapsed / 500;
+        for (let i = 0; i < 8; i++) {
+            const pAngle = Math.PI + (particleTime + i * Math.PI / 4) % Math.PI;
+            const px = centerX + Math.cos(pAngle) * (domeRadius - 5);
+            const py = domeY + Math.sin(pAngle) * (domeRadius - 5);
+            
+            ctx.globalAlpha = pulse * 0.8 * remaining;
+            ctx.fillStyle = '#ffffff';
+            ctx.shadowColor = '#44ff88';
+            ctx.shadowBlur = 15;
+            ctx.beginPath();
+            ctx.arc(px, py, 4, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        // Timer display - circular progress at bottom
+        const timerY = this.canvas.height - 45;
+        const timerRadius = 25;
+        
+        // Timer background
+        ctx.globalAlpha = 0.5;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.beginPath();
+        ctx.arc(centerX, timerY, timerRadius + 5, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Timer progress arc
+        ctx.globalAlpha = 0.9;
+        ctx.strokeStyle = remaining < 0.3 ? '#ff4444' : '#44ff88';
+        ctx.lineWidth = 6;
+        ctx.shadowColor = ctx.strokeStyle;
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(centerX, timerY, timerRadius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * remaining);
+        ctx.stroke();
+        
+        // Timer text
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 14px "Orbitron", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.shadowBlur = 5;
+        const secondsLeft = Math.ceil((shield.duration - elapsed) / 1000);
+        ctx.fillText(`${secondsLeft}s`, centerX, timerY);
+        
+        ctx.restore();
+    }
+    
+    // Draw pulsing indicator when shield is available
+    drawShieldAvailableIndicator(ctx) {
+        const pulse = 0.5 + 0.5 * Math.sin(this.powerUps.shield.pulsePhase);
+        
+        ctx.save();
+        
+        // Position at bottom center
+        const x = this.canvas.width / 2;
+        const y = this.canvas.height - 100;
+        
+        // Background
+        ctx.globalAlpha = 0.8;
+        ctx.fillStyle = `rgba(68, 255, 136, ${0.2 + pulse * 0.2})`;
+        ctx.strokeStyle = '#44ff88';
+        ctx.lineWidth = 2 + pulse * 2;
+        
+        // Rounded rect
+        const width = 280;
+        const height = 40;
+        ctx.beginPath();
+        ctx.roundRect(x - width/2, y - height/2, width, height, 10);
+        ctx.fill();
+        ctx.stroke();
+        
+        // Text
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 16px "Orbitron", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.shadowColor = '#44ff88';
+        ctx.shadowBlur = 10 + pulse * 10;
+        ctx.fillText('🛡️ PRESS SPACE FOR SHIELD! 🛡️', x, y);
+        
+        ctx.restore();
     }
     
     drawWordProgress(ctx) {
@@ -1170,48 +1653,78 @@ class AsteroidDefenseLevel {
         
         ctx.save();
         
-        // Draw each power-up status
-        Object.entries(this.powerUps).forEach(([key, pu]) => {
-            const isActive = pu.active;
-            const isReady = pu.ready;
-            
-            if (!isActive && !isReady && this.combo < pu.comboRequired) return;
-            
-            ctx.globalAlpha = isActive || isReady ? 1 : 0.4;
-            
-            // Background
-            ctx.fillStyle = isActive ? pu.color + '44' : 'rgba(0, 0, 0, 0.5)';
+        // Missile status
+        const missile = this.powerUps.missile;
+        if (missile.ready || this.combo >= missile.comboRequired * 0.5) {
+            ctx.globalAlpha = missile.ready ? 1 : 0.4;
+            ctx.fillStyle = missile.ready ? missile.color + '44' : 'rgba(0, 0, 0, 0.5)';
             ctx.fillRect(startX, y + offsetY, 140, 30);
-            
-            // Border
-            ctx.strokeStyle = isActive || isReady ? pu.color : '#666';
+            ctx.strokeStyle = missile.ready ? missile.color : '#666';
             ctx.lineWidth = 2;
             ctx.strokeRect(startX, y + offsetY, 140, 30);
-            
-            // Icon and name
             ctx.font = '14px "Exo 2", sans-serif';
-            ctx.fillStyle = isActive || isReady ? '#ffffff' : '#888';
+            ctx.fillStyle = missile.ready ? '#ffffff' : '#888';
             ctx.textAlign = 'left';
-            ctx.fillText(`${pu.icon} ${pu.name}`, startX + 5, y + offsetY + 20);
-            
-            // Status or combo progress
+            ctx.fillText(`${missile.icon} ${missile.name}`, startX + 5, y + offsetY + 20);
             ctx.textAlign = 'right';
-            if (isActive) {
-                if (pu.shotsRemaining !== undefined) {
-                    ctx.fillText(`${pu.shotsRemaining} shots`, startX + 135, y + offsetY + 20);
-                } else {
-                    const remaining = Math.ceil((pu.duration - (Date.now() - pu.activatedAt)) / 1000);
-                    ctx.fillText(`${remaining}s`, startX + 135, y + offsetY + 20);
-                }
-            } else if (isReady) {
-                ctx.fillStyle = '#44ff88';
-                ctx.fillText('READY!', startX + 135, y + offsetY + 20);
-            } else {
-                ctx.fillText(`${this.combo}/${pu.comboRequired}`, startX + 135, y + offsetY + 20);
-            }
-            
+            ctx.fillStyle = missile.ready ? '#44ff88' : '#888';
+            ctx.fillText(missile.ready ? 'READY!' : `${this.combo}/${missile.comboRequired}`, startX + 135, y + offsetY + 20);
             offsetY += 35;
-        });
+        }
+        
+        // Laser status
+        const laser = this.powerUps.laser;
+        if (laser.active || laser.ready || this.combo >= laser.comboRequired * 0.5) {
+            ctx.globalAlpha = laser.active ? 1 : 0.4;
+            ctx.fillStyle = laser.active ? laser.color + '44' : 'rgba(0, 0, 0, 0.5)';
+            ctx.fillRect(startX, y + offsetY, 140, 30);
+            ctx.strokeStyle = laser.active ? laser.color : '#666';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(startX, y + offsetY, 140, 30);
+            ctx.font = '14px "Exo 2", sans-serif';
+            ctx.fillStyle = laser.active ? '#ffffff' : '#888';
+            ctx.textAlign = 'left';
+            ctx.fillText(`${laser.icon} ${laser.name}`, startX + 5, y + offsetY + 20);
+            ctx.textAlign = 'right';
+            if (laser.active) {
+                ctx.fillStyle = '#00ffff';
+                ctx.fillText(`${laser.shotsRemaining} shots`, startX + 135, y + offsetY + 20);
+            } else {
+                ctx.fillStyle = '#888';
+                ctx.fillText(`${this.combo}/${laser.comboRequired}`, startX + 135, y + offsetY + 20);
+            }
+            offsetY += 35;
+        }
+        
+        // Shield status (shows progress toward earning, or AVAILABLE)
+        const shield = this.powerUps.shield;
+        if (!shield.used || shield.available || shield.active) {
+            const showProgress = this.combo >= shield.comboRequired * 0.3 || shield.available || shield.active;
+            if (showProgress) {
+                ctx.globalAlpha = (shield.available || shield.active) ? 1 : 0.4;
+                ctx.fillStyle = (shield.available || shield.active) ? shield.color + '44' : 'rgba(0, 0, 0, 0.5)';
+                ctx.fillRect(startX, y + offsetY, 140, 30);
+                ctx.strokeStyle = (shield.available || shield.active) ? shield.color : '#666';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(startX, y + offsetY, 140, 30);
+                ctx.font = '14px "Exo 2", sans-serif';
+                ctx.fillStyle = (shield.available || shield.active) ? '#ffffff' : '#888';
+                ctx.textAlign = 'left';
+                ctx.fillText(`${shield.icon} ${shield.name}`, startX + 5, y + offsetY + 20);
+                ctx.textAlign = 'right';
+                if (shield.active) {
+                    const remaining = Math.ceil((shield.duration - (Date.now() - shield.activatedAt)) / 1000);
+                    ctx.fillStyle = '#44ff88';
+                    ctx.fillText(`${remaining}s`, startX + 135, y + offsetY + 20);
+                } else if (shield.available) {
+                    ctx.fillStyle = '#44ff88';
+                    ctx.fillText('SPACE!', startX + 135, y + offsetY + 20);
+                } else if (!shield.used) {
+                    ctx.fillStyle = '#888';
+                    ctx.fillText(`${this.combo}/${shield.comboRequired}`, startX + 135, y + offsetY + 20);
+                }
+            }
+        }
         
         ctx.restore();
     }

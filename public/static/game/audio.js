@@ -320,6 +320,112 @@ class AudioManagerClass {
         this.playTone(440, 0.1, 'square', 0.15);
         setTimeout(() => this.playTone(349, 0.1, 'square', 0.15), 120);
     }
+    
+    // Hyper Laser sound - distinct high-energy beam
+    playHyperLaser() {
+        if (!this.enabled || !this.ctx) return;
+        
+        // Create multiple oscillators for a rich laser beam sound
+        const osc1 = this.ctx.createOscillator();
+        const osc2 = this.ctx.createOscillator();
+        const osc3 = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        
+        // High-pitched sweeping tone
+        osc1.type = 'sawtooth';
+        osc1.frequency.setValueAtTime(2000, this.ctx.currentTime);
+        osc1.frequency.exponentialRampToValueAtTime(800, this.ctx.currentTime + 0.25);
+        
+        // Mid buzzing harmonic
+        osc2.type = 'square';
+        osc2.frequency.setValueAtTime(1500, this.ctx.currentTime);
+        osc2.frequency.exponentialRampToValueAtTime(600, this.ctx.currentTime + 0.2);
+        
+        // Low power hum
+        osc3.type = 'sine';
+        osc3.frequency.setValueAtTime(300, this.ctx.currentTime);
+        osc3.frequency.exponentialRampToValueAtTime(150, this.ctx.currentTime + 0.3);
+        
+        // Envelope with sustain then decay
+        gain.gain.setValueAtTime(0, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.4, this.ctx.currentTime + 0.02);
+        gain.gain.setValueAtTime(0.35, this.ctx.currentTime + 0.1);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.35);
+        
+        osc1.connect(gain);
+        osc2.connect(gain);
+        osc3.connect(gain);
+        gain.connect(this.sfxGain);
+        
+        osc1.start();
+        osc2.start();
+        osc3.start();
+        osc1.stop(this.ctx.currentTime + 0.35);
+        osc2.stop(this.ctx.currentTime + 0.35);
+        osc3.stop(this.ctx.currentTime + 0.35);
+        
+        // Add crackling noise for extra intensity
+        this.playNoise(0.15, 0.2);
+    }
+    
+    // Shield deflect sound
+    playShieldDeflect() {
+        if (!this.enabled || !this.ctx) return;
+        
+        // Resonant shield impact
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(600, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(200, this.ctx.currentTime + 0.3);
+        
+        gain.gain.setValueAtTime(0.35, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
+        
+        osc.connect(gain);
+        gain.connect(this.sfxGain);
+        
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.3);
+        
+        // Add harmonic shimmer
+        setTimeout(() => {
+            this.playTone(800, 0.15, 'sine', 0.2);
+            this.playTone(1200, 0.1, 'sine', 0.15);
+        }, 50);
+    }
+    
+    // Shield activation sound
+    playShieldActivate() {
+        if (!this.enabled || !this.ctx) return;
+        
+        // Rising power-up with resonance
+        const notes = [300, 400, 500, 700, 900];
+        notes.forEach((freq, i) => {
+            setTimeout(() => {
+                this.playTone(freq, 0.2, 'sine', 0.25 - i * 0.03);
+            }, i * 50);
+        });
+        
+        // Add a sustained hum
+        setTimeout(() => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            
+            osc.type = 'sine';
+            osc.frequency.value = 200;
+            
+            gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.5);
+            
+            osc.connect(gain);
+            gain.connect(this.sfxGain);
+            
+            osc.start();
+            osc.stop(this.ctx.currentTime + 0.5);
+        }, 250);
+    }
 }
 
 // Create global audio manager instance
