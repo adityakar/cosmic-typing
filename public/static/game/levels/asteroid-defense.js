@@ -54,6 +54,12 @@ class AsteroidDefenseLevel {
         this.spawnRate = this.getSpawnRate();
         this.fallSpeed = this.getFallSpeed();
         
+        // Word mode - use dictionary words
+        this.useWordMode = true; // Use word-based sequences
+        this.currentWord = null;
+        this.currentWordIndex = 0;
+        this.wordQueue = [];
+        
         // Timers
         this.lastSpawn = 0;
         this.spawnInterval = 2000; // ms between spawns
@@ -65,6 +71,48 @@ class AsteroidDefenseLevel {
         // Adaptive difficulty
         this.recentAccuracy = [];
         this.adaptiveMultiplier = 1;
+        
+        // === POWER-UP SYSTEM ===
+        this.powerUps = {
+            // Missile: AoE blast that destroys multiple asteroids
+            missile: {
+                name: 'Mega Missile',
+                icon: '🚀',
+                active: false,
+                ready: false,
+                comboRequired: 10,
+                blastRadius: 150,
+                damage: 100,
+                duration: 0,
+                color: '#ff6600'
+            },
+            // Instant Laser: Near-instant beam (no travel time)
+            laser: {
+                name: 'Hyper Laser',
+                icon: '⚡',
+                active: false,
+                ready: false,
+                comboRequired: 15,
+                shotsRemaining: 0,
+                maxShots: 3,
+                duration: 5000,
+                activatedAt: 0,
+                color: '#00ffff'
+            },
+            // Shield Boost: Temporary invulnerability
+            shield: {
+                name: 'Force Shield',
+                icon: '🛡️',
+                active: false,
+                ready: false,
+                comboRequired: 20,
+                duration: 5000,
+                activatedAt: 0,
+                color: '#44ff88'
+            }
+        };
+        this.activePowerUp = null;
+        this.powerUpIndicators = [];
     }
     
     getSpawnRate() {
@@ -115,6 +163,21 @@ class AsteroidDefenseLevel {
         this.recentAccuracy = [];
         this.adaptiveMultiplier = 1;
         this.spawnInterval = this.spawnRate;
+        
+        // Initialize word queue if using word mode
+        if (this.useWordMode && window.WordDictionary) {
+            this.wordQueue = WordDictionary.getRandomWords(20, this.difficulty);
+            this.currentWord = this.wordQueue.shift();
+            this.currentWordIndex = 0;
+        }
+        
+        // Reset power-ups
+        Object.values(this.powerUps).forEach(pu => {
+            pu.active = false;
+            pu.ready = false;
+        });
+        this.activePowerUp = null;
+        this.powerUpIndicators = [];
     }
     
     start() {
@@ -131,25 +194,44 @@ class AsteroidDefenseLevel {
         this.state = 'playing';
     }
     
-    spawnAsteroid() {
-        // Get a random letter, with bias towards letters player struggles with
-        let letter;
-        const weakLetters = this.game.player.getWeakestLetters(3);
-        
-        if (weakLetters.length > 0 && Math.random() < 0.3) {
-            letter = Utils.randomChoice(weakLetters);
-        } else {
-            letter = Utils.randomChoice(this.letters);
+    getNextLetter() {
+        // Word mode: get next letter from current word
+        if (this.useWordMode && this.currentWord && window.WordDictionary) {
+            if (this.currentWordIndex < this.currentWord.length) {
+                return this.currentWord[this.currentWordIndex];
+            } else {
+                // Move to next word
+                this.currentWord = this.wordQueue.shift();
+                if (!this.currentWord) {
+                    // Refill word queue
+                    this.wordQueue = WordDictionary.getRandomWords(20, this.difficulty);
+                    this.currentWord = this.wordQueue.shift();
+                }
+                this.currentWordIndex = 0;
+                return this.currentWord ? this.currentWord[0] : Utils.randomChoice(this.letters);
+            }
         }
+        
+        // Fallback to random letters with weak letter bias
+        const weakLetters = this.game.player.getWeakestLetters(3);
+        if (weakLetters.length > 0 && Math.random() < 0.3) {
+            return Utils.randomChoice(weakLetters);
+        }
+        return Utils.randomChoice(this.letters);
+    }
+    
+    spawnAsteroid() {
+        // Get next letter (word mode or random)
+        const letter = this.getNextLetter();
         
         // Random position at top
         const x = Utils.random(100, this.canvas.width - 100);
         const y = -50;
         
         // Size based on difficulty (larger = easier to see)
-        const size = this.difficulty === 'beginner' ? 50 : 
-                     this.difficulty === 'easy' ? 45 : 
-                     this.difficulty === 'medium' ? 40 : 35;
+        const size = this.difficulty === 'beginner' ? 55 : 
+                     this.difficulty === 'easy' ? 50 : 
+                     this.difficulty === 'medium' ? 45 : 40;
         
         // Speed with adaptive multiplier
         const speed = (this.fallSpeed + Utils.random(-10, 10)) * this.adaptiveMultiplier;
@@ -192,6 +274,11 @@ class AsteroidDefenseLevel {
         if (matchingAsteroid) {
             this.destroyAsteroid(matchingAsteroid);
             this.recordHit(true, pressedLetter);
+            
+            // Advance word index if using word mode
+            if (this.useWordMode && this.currentWord) {
+                this.currentWordIndex++;
+            }
         } else {
             this.recordMiss(pressedLetter);
         }
@@ -201,11 +288,82 @@ class AsteroidDefenseLevel {
         // Aim cannon at asteroid
         this.aimCannon(asteroid);
         
-        // Fire projectile - explosion happens when projectile reaches asteroid
-        this.fireProjectile(asteroid);
+        // Check for active power-ups
+        if (this.powerUps.laser.active && this.powerUps.laser.shotsRemaining > 0) {
+            // Instant laser - immediate destruction
+            this.fireInstantLaser(asteroid);
+        } else if (this.powerUps.missile.ready && this.combo >= this.powerUps.missile.comboRequired) {
+            // Missile ready - AoE blast
+            this.fireMissile(asteroid);
+        } else {
+            // Normal projectile
+            this.fireProjectile(asteroid);
+        }
         
         // Play laser sound
         AudioManager.playLaser();
+    }
+    
+    fireInstantLaser(asteroid) {
+        // Instant beam effect - no projectile travel time
+        this.powerUps.laser.shotsRemaining--;
+        
+        // Draw instant beam (visual only)
+        this.particles.fire(
+            this.cannon.x,
+            this.cannon.y,
+            Math.atan2(asteroid.y - this.cannon.y, asteroid.x - this.cannon.x),
+            { count: 20, speed: 600, colors: ['#00ffff', '#ffffff', '#00ff88'] }
+        );
+        
+        // Immediate explosion
+        this.explodeAsteroid(asteroid);
+        
+        // Special laser sound
+        AudioManager.playPowerUp();
+        
+        // Check if laser shots depleted
+        if (this.powerUps.laser.shotsRemaining <= 0) {
+            this.powerUps.laser.active = false;
+            this.powerUps.laser.ready = false;
+        }
+    }
+    
+    fireMissile(asteroid) {
+        // Reset missile availability
+        this.powerUps.missile.ready = false;
+        
+        // Create missile projectile (slower but bigger)
+        const speed = 500;
+        const dx = asteroid.x - this.cannon.x;
+        const dy = asteroid.y - this.cannon.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const travelTime = distance / speed;
+        const predictedY = asteroid.y + (asteroid.speed * travelTime);
+        const leadAngle = Math.atan2(predictedY - this.cannon.y, asteroid.x - this.cannon.x);
+        
+        this.projectiles.push({
+            x: this.cannon.x + Math.cos(this.cannon.targetAngle) * this.cannon.length,
+            y: this.cannon.y + Math.sin(this.cannon.targetAngle) * this.cannon.length,
+            vx: Math.cos(leadAngle) * speed,
+            vy: Math.sin(leadAngle) * speed,
+            targetId: asteroid.id,
+            target: asteroid,
+            color: '#ff6600',
+            size: 15,
+            trail: [],
+            isMissile: true,
+            blastRadius: this.powerUps.missile.blastRadius
+        });
+        
+        // Big launch effect
+        this.particles.explosion(
+            this.cannon.x,
+            this.cannon.y,
+            { count: 15, colors: ['#ff6600', '#ffcc00', '#ffffff'], speed: 150, size: 8 }
+        );
+        
+        AudioManager.playPowerUp();
     }
     
     aimCannon(target) {
@@ -248,7 +406,8 @@ class AsteroidDefenseLevel {
             target: target, // Store reference to actual asteroid for tracking
             color: '#00ffff',
             size: 8,
-            trail: []
+            trail: [],
+            isMissile: false
         });
         
         // Cannon recoil effect
@@ -304,6 +463,46 @@ class AsteroidDefenseLevel {
         this.game.screenShake.start(5, 150);
     }
     
+    // Missile AoE explosion
+    explodeMissile(missile, targetAsteroid) {
+        // Remove target asteroid
+        this.explodeAsteroid(targetAsteroid);
+        
+        // Find all asteroids in blast radius
+        const nearbyAsteroids = this.asteroids.filter(a => {
+            const dist = Utils.distance(missile.x, missile.y, a.x, a.y);
+            return dist <= missile.blastRadius && a.id !== targetAsteroid.id;
+        });
+        
+        // Destroy nearby asteroids
+        nearbyAsteroids.forEach(a => {
+            this.explodeAsteroid(a);
+            this.score += 50; // Bonus for AoE kills
+        });
+        
+        // Massive explosion effect
+        AudioManager.playExplosion('large');
+        this.game.screenShake.start(15, 300);
+        
+        // Big ring explosion
+        this.particles.ring(missile.x, missile.y, {
+            count: 40,
+            color: '#ff6600',
+            speed: 400
+        });
+        
+        // Multiple particle bursts
+        for (let i = 0; i < 3; i++) {
+            setTimeout(() => {
+                this.particles.explosion(
+                    missile.x + Utils.random(-50, 50),
+                    missile.y + Utils.random(-50, 50),
+                    { count: 30, colors: ['#ff6600', '#ffcc00', '#ffffff'], speed: 300, size: 10 }
+                );
+            }, i * 100);
+        }
+    }
+    
     recordHit(correct, letter) {
         if (correct) {
             this.combo++;
@@ -328,6 +527,9 @@ class AsteroidDefenseLevel {
             if (this.combo === 25) this.game.checkAchievement('combo_25');
             if (this.combo === 50) this.game.checkAchievement('combo_50');
             
+            // === CHECK POWER-UP UNLOCKS ===
+            this.checkPowerUps();
+            
             // Record accuracy
             this.recentAccuracy.push(1);
             if (this.recentAccuracy.length > 20) this.recentAccuracy.shift();
@@ -339,9 +541,60 @@ class AsteroidDefenseLevel {
         this.adaptDifficulty();
     }
     
+    checkPowerUps() {
+        // Missile unlocks at 10 combo
+        if (this.combo >= this.powerUps.missile.comboRequired && !this.powerUps.missile.ready) {
+            this.powerUps.missile.ready = true;
+            this.showPowerUpNotification(this.powerUps.missile);
+        }
+        
+        // Laser unlocks at 15 combo
+        if (this.combo >= this.powerUps.laser.comboRequired && !this.powerUps.laser.active && !this.powerUps.laser.ready) {
+            this.powerUps.laser.ready = true;
+            this.powerUps.laser.active = true;
+            this.powerUps.laser.shotsRemaining = this.powerUps.laser.maxShots;
+            this.powerUps.laser.activatedAt = Date.now();
+            this.showPowerUpNotification(this.powerUps.laser);
+        }
+        
+        // Shield unlocks at 20 combo
+        if (this.combo >= this.powerUps.shield.comboRequired && !this.powerUps.shield.active && !this.powerUps.shield.ready) {
+            this.powerUps.shield.ready = true;
+            this.powerUps.shield.active = true;
+            this.powerUps.shield.activatedAt = Date.now();
+            this.showPowerUpNotification(this.powerUps.shield);
+        }
+    }
+    
+    showPowerUpNotification(powerUp) {
+        // Add floating indicator
+        this.powerUpIndicators.push({
+            text: `${powerUp.icon} ${powerUp.name} READY!`,
+            x: this.canvas.width / 2,
+            y: this.canvas.height / 2 - 50,
+            alpha: 1,
+            scale: 1.5,
+            life: 2
+        });
+        
+        // Play power-up sound
+        AudioManager.playPowerUp();
+        
+        // Visual effect
+        this.particles.ring(this.cannon.x, this.cannon.y, {
+            count: 30,
+            color: powerUp.color,
+            speed: 300
+        });
+    }
+    
     recordMiss(letter) {
         this.combo = 0;
         this.wrongCount++;
+        
+        // Reset power-up readiness (lose power-ups on miss)
+        this.powerUps.missile.ready = false;
+        // Laser and shield stay active if already activated
         
         AudioManager.playWrong();
         
@@ -382,12 +635,35 @@ class AsteroidDefenseLevel {
     }
     
     asteroidReachedEarth(asteroid) {
+        // Check if shield is active
+        if (this.powerUps.shield.active) {
+            // Shield absorbs the hit
+            this.particles.explosion(asteroid.x, asteroid.y, {
+                count: 20,
+                colors: ['#44ff88', '#00ffff', '#ffffff'],
+                speed: 200,
+                size: 8
+            });
+            
+            // Remove asteroid
+            const index = this.asteroids.findIndex(a => a.id === asteroid.id);
+            if (index !== -1) {
+                this.asteroids.splice(index, 1);
+            }
+            
+            AudioManager.playPowerUp();
+            return;
+        }
+        
         // Damage Earth
         const damage = 20;
         this.earthHealth = Math.max(0, this.earthHealth - damage);
         
         // Reset combo
         this.combo = 0;
+        
+        // Reset power-up readiness
+        this.powerUps.missile.ready = false;
         
         // Effects
         AudioManager.playExplosion('large');
@@ -429,6 +705,36 @@ class AsteroidDefenseLevel {
         if (this.timeElapsed >= this.levelDuration) {
             this.gameOver(true);
             return;
+        }
+        
+        // Update power-up timers
+        if (this.powerUps.laser.active) {
+            const elapsed = currentTime - this.powerUps.laser.activatedAt;
+            if (elapsed >= this.powerUps.laser.duration || this.powerUps.laser.shotsRemaining <= 0) {
+                this.powerUps.laser.active = false;
+                this.powerUps.laser.ready = false;
+            }
+        }
+        
+        if (this.powerUps.shield.active) {
+            const elapsed = currentTime - this.powerUps.shield.activatedAt;
+            if (elapsed >= this.powerUps.shield.duration) {
+                this.powerUps.shield.active = false;
+                this.powerUps.shield.ready = false;
+            }
+        }
+        
+        // Update power-up indicators
+        for (let i = this.powerUpIndicators.length - 1; i >= 0; i--) {
+            const indicator = this.powerUpIndicators[i];
+            indicator.y -= 30 * dt;
+            indicator.life -= dt;
+            indicator.alpha = indicator.life / 2;
+            indicator.scale = 1 + (1 - indicator.life / 2) * 0.5;
+            
+            if (indicator.life <= 0) {
+                this.powerUpIndicators.splice(i, 1);
+            }
         }
         
         // Spawn asteroids
@@ -500,8 +806,12 @@ class AsteroidDefenseLevel {
                 // Check distance to actual asteroid position
                 const targetDist = Utils.distance(proj.x, proj.y, proj.target.x, proj.target.y);
                 if (targetDist < proj.target.size + 10) {
-                    // HIT! Explode the asteroid
-                    this.explodeAsteroid(proj.target);
+                    // HIT! Check if missile for AoE
+                    if (proj.isMissile) {
+                        this.explodeMissile(proj, proj.target);
+                    } else {
+                        this.explodeAsteroid(proj.target);
+                    }
                     shouldRemove = true;
                 }
             }
@@ -578,6 +888,19 @@ class AsteroidDefenseLevel {
         ctx.fillStyle = earthGradient;
         ctx.fillRect(0, this.canvas.height - 200, this.canvas.width, 200);
         
+        // Draw shield effect if active
+        if (this.powerUps.shield.active) {
+            const shieldAlpha = 0.3 + 0.1 * Math.sin(Date.now() / 200);
+            ctx.save();
+            ctx.globalAlpha = shieldAlpha;
+            ctx.strokeStyle = '#44ff88';
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            ctx.arc(this.earth.x, this.earth.y + 170, this.earth.radius + 30, Math.PI, 0, true);
+            ctx.stroke();
+            ctx.restore();
+        }
+        
         // Draw Earth surface (curved line at bottom)
         ctx.save();
         ctx.beginPath();
@@ -621,7 +944,7 @@ class AsteroidDefenseLevel {
                 trailGradient.addColorStop(1, proj.color);
                 
                 ctx.strokeStyle = trailGradient;
-                ctx.lineWidth = 4;
+                ctx.lineWidth = proj.isMissile ? 8 : 4;
                 ctx.lineCap = 'round';
                 ctx.stroke();
                 ctx.restore();
@@ -631,7 +954,7 @@ class AsteroidDefenseLevel {
             ctx.save();
             const projGlow = ctx.createRadialGradient(proj.x, proj.y, 0, proj.x, proj.y, proj.size * 3);
             projGlow.addColorStop(0, proj.color);
-            projGlow.addColorStop(0.5, 'rgba(0, 255, 255, 0.5)');
+            projGlow.addColorStop(0.5, proj.isMissile ? 'rgba(255, 102, 0, 0.5)' : 'rgba(0, 255, 255, 0.5)');
             projGlow.addColorStop(1, 'transparent');
             ctx.fillStyle = projGlow;
             ctx.beginPath();
@@ -649,6 +972,9 @@ class AsteroidDefenseLevel {
         this.asteroids.forEach(asteroid => {
             ctx.save();
             ctx.translate(asteroid.x, asteroid.y);
+            
+            // Draw rotating asteroid body
+            ctx.save();
             ctx.rotate(asteroid.rotation);
             
             // Glow effect
@@ -687,13 +1013,22 @@ class AsteroidDefenseLevel {
             ctx.arc(-asteroid.size * 0.3, asteroid.size * 0.15, asteroid.size * 0.15, 0, Math.PI * 2);
             ctx.fill();
             
-            // Letter
-            ctx.fillStyle = '#ffffff';
-            ctx.font = `bold ${asteroid.size}px 'Orbitron', sans-serif`;
+            ctx.restore(); // Restore from rotation - now we're just translated
+            
+            // Draw letter WITHOUT rotation (stays upright) - IMPROVED FONT
+            // Using Arial Black / Impact for maximum readability
+            const fontSize = Math.round(asteroid.size * 1.1);
+            ctx.font = `bold ${fontSize}px "Arial Black", Impact, "Helvetica Neue", Arial, sans-serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.shadowColor = '#000000';
-            ctx.shadowBlur = 5;
+            
+            // Strong black outline for contrast
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 5;
+            ctx.strokeText(asteroid.letter, 0, 0);
+            
+            // White fill
+            ctx.fillStyle = '#ffffff';
             ctx.fillText(asteroid.letter, 0, 0);
             
             ctx.restore();
@@ -730,10 +1065,21 @@ class AsteroidDefenseLevel {
         ctx.translate(this.cannon.x, this.cannon.y);
         ctx.rotate(this.cannon.angle);
         
-        // Barrel glow when firing
+        // Barrel glow when firing - change color based on active power-up
+        let barrelColor = this.cannon.color;
+        let barrelGlowColor = this.cannon.glowColor;
+        
+        if (this.powerUps.laser.active) {
+            barrelColor = '#00ffff';
+            barrelGlowColor = '#ffffff';
+        } else if (this.powerUps.missile.ready) {
+            barrelColor = '#ff6600';
+            barrelGlowColor = '#ffcc00';
+        }
+        
         const barrelGlow = ctx.createLinearGradient(0, 0, this.cannon.length, 0);
-        barrelGlow.addColorStop(0, this.cannon.color);
-        barrelGlow.addColorStop(1, this.cannon.glowColor);
+        barrelGlow.addColorStop(0, barrelColor);
+        barrelGlow.addColorStop(1, barrelGlowColor);
         
         // Barrel
         ctx.fillStyle = barrelGlow;
@@ -761,6 +1107,113 @@ class AsteroidDefenseLevel {
         
         // Draw timer
         this.drawTimer(ctx);
+        
+        // Draw power-up indicators
+        this.drawPowerUpStatus(ctx);
+        
+        // Draw floating power-up notifications
+        this.powerUpIndicators.forEach(indicator => {
+            ctx.save();
+            ctx.globalAlpha = indicator.alpha;
+            ctx.font = `bold ${24 * indicator.scale}px "Orbitron", sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#ffd700';
+            ctx.shadowColor = '#ffd700';
+            ctx.shadowBlur = 20;
+            ctx.fillText(indicator.text, indicator.x, indicator.y);
+            ctx.restore();
+        });
+        
+        // Draw current word progress (if using word mode)
+        if (this.useWordMode && this.currentWord) {
+            this.drawWordProgress(ctx);
+        }
+    }
+    
+    drawWordProgress(ctx) {
+        const centerX = this.canvas.width / 2;
+        const y = this.canvas.height - 160;
+        
+        ctx.save();
+        ctx.font = 'bold 16px "Exo 2", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.fillText('WORD:', centerX - 80, y);
+        
+        // Draw the word with typed/untyped highlighting
+        let x = centerX - 40;
+        for (let i = 0; i < this.currentWord.length; i++) {
+            const letter = this.currentWord[i];
+            if (i < this.currentWordIndex) {
+                ctx.fillStyle = '#44ff88'; // Typed - green
+            } else if (i === this.currentWordIndex) {
+                ctx.fillStyle = '#ffd700'; // Current - gold
+                ctx.shadowColor = '#ffd700';
+                ctx.shadowBlur = 10;
+            } else {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.4)'; // Upcoming - dim
+                ctx.shadowBlur = 0;
+            }
+            ctx.font = i === this.currentWordIndex ? 'bold 22px "Arial Black", sans-serif' : 'bold 18px "Exo 2", sans-serif';
+            ctx.fillText(letter, x, y);
+            x += 25;
+            ctx.shadowBlur = 0;
+        }
+        
+        ctx.restore();
+    }
+    
+    drawPowerUpStatus(ctx) {
+        const startX = 20;
+        const y = 100;
+        let offsetY = 0;
+        
+        ctx.save();
+        
+        // Draw each power-up status
+        Object.entries(this.powerUps).forEach(([key, pu]) => {
+            const isActive = pu.active;
+            const isReady = pu.ready;
+            
+            if (!isActive && !isReady && this.combo < pu.comboRequired) return;
+            
+            ctx.globalAlpha = isActive || isReady ? 1 : 0.4;
+            
+            // Background
+            ctx.fillStyle = isActive ? pu.color + '44' : 'rgba(0, 0, 0, 0.5)';
+            ctx.fillRect(startX, y + offsetY, 140, 30);
+            
+            // Border
+            ctx.strokeStyle = isActive || isReady ? pu.color : '#666';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(startX, y + offsetY, 140, 30);
+            
+            // Icon and name
+            ctx.font = '14px "Exo 2", sans-serif';
+            ctx.fillStyle = isActive || isReady ? '#ffffff' : '#888';
+            ctx.textAlign = 'left';
+            ctx.fillText(`${pu.icon} ${pu.name}`, startX + 5, y + offsetY + 20);
+            
+            // Status or combo progress
+            ctx.textAlign = 'right';
+            if (isActive) {
+                if (pu.shotsRemaining !== undefined) {
+                    ctx.fillText(`${pu.shotsRemaining} shots`, startX + 135, y + offsetY + 20);
+                } else {
+                    const remaining = Math.ceil((pu.duration - (Date.now() - pu.activatedAt)) / 1000);
+                    ctx.fillText(`${remaining}s`, startX + 135, y + offsetY + 20);
+                }
+            } else if (isReady) {
+                ctx.fillStyle = '#44ff88';
+                ctx.fillText('READY!', startX + 135, y + offsetY + 20);
+            } else {
+                ctx.fillText(`${this.combo}/${pu.comboRequired}`, startX + 135, y + offsetY + 20);
+            }
+            
+            offsetY += 35;
+        });
+        
+        ctx.restore();
     }
     
     drawHealthBar(ctx) {

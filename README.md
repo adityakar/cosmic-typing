@@ -1,156 +1,164 @@
-# 🚀 Cosmic Typer - Space Typing Adventure
+# Cosmic Typer - Space Typing Adventure 🚀
 
-An engaging, beautiful, and educational typing game designed for children (especially 7-year-olds) to improve their typing skills through fun, space-themed gameplay!
+A fun, engaging typing game designed for 7-year-old beginner typists with a beautiful space theme featuring ships, rockets, and asteroids!
 
-## 🌟 Features
+## Production URL
+🌐 **Live Game**: https://cosmic-typer.pages.dev
 
-### Currently Completed
-- **Two Exciting Levels**:
-  - **🌍 Asteroid Defense**: Protect Earth from falling letter asteroids! Type the correct letter to aim and fire your laser cannon at incoming asteroids. Beautiful explosion effects and particle systems!
-  - **🚀 Rocket Launch**: Type letters to fuel your rocket and race to the moon! Watch your rocket blast off with realistic fire effects!
+## GitHub Repository
+📦 https://github.com/adityakar/cosmic-typing
 
-- **Player Profile System**:
-  - Saves player name and progress in localStorage
-  - Tracks typing accuracy, speed (WPM), and skill level
-  - Per-letter performance tracking to focus practice on weak areas
+## Features
 
-- **Adaptive Difficulty**:
-  - Initial skill assessment when starting
-  - Four difficulty levels: Beginner, Easy, Medium, Hard
-  - Real-time difficulty adjustment based on recent performance
-  - Letter selection prioritizes letters the player struggles with
+### 🎮 Two Exciting Levels
 
-- **Gamification**:
-  - Star rating system (1-3 stars per level)
-  - Achievement system with unlockable badges
-  - Combo system with multipliers
-  - Level progression and unlocking
-  - Score tracking and high scores
+#### Level 1: Asteroid Defense 🌍
+- Letters fall as asteroids toward Earth
+- Type the matching letter to aim and fire the laser cannon
+- Beautiful particle explosions with screen shake effects
+- Protect Earth's shield health bar
+- **NEW**: Word-based typing mode - type real words, not just random letters!
+- **NEW**: Power-up system unlocked by combos:
+  - 🚀 **Mega Missile** (10 combo): AoE blast that destroys multiple asteroids
+  - ⚡ **Hyper Laser** (15 combo): 3 instant-hit shots with no travel time
+  - 🛡️ **Force Shield** (20 combo): Temporary invulnerability for Earth
 
-- **Beautiful Visuals**:
-  - Animated starfield with twinkling stars
-  - Shooting stars and nebula effects
-  - Particle effects for explosions, laser trails, rocket flames
-  - Screen shake effects for impact
-  - Modern, space-themed UI with glow effects
+#### Level 2: Rocket Launch 🚀
+- Type letters to add fuel and launch your rocket to the moon
+- Engine flames and particle effects for each correct keystroke
+- Race against time through atmosphere to space
+- **NEW**: Realistic gravity physics:
+  - When fuel runs out, velocity decreases
+  - When velocity hits zero, gravity pulls the rocket down
+  - Must keep typing to avoid crashing back to Earth!
+- Boost meter fills with combos for speed bursts
 
-- **Sound Effects**:
-  - Web Audio API-based synthesized sounds
-  - Laser shots, explosions, combos
-  - Achievement fanfares
-  - Wrong key buzzer
+### 🧒 Child-Friendly Features
 
-### Levels Overview
+- **Word Dictionary System**: Uses age-appropriate 3-5 letter words familiar to 7-year-olds
+  - Categories: Space, Animals, Food, Colors, Family, Nature, School
+  - Themed words for the space adventure
+  - Words shown at bottom of screen with progress highlighting
+  
+- **Clear, Readable Fonts**: 
+  - Arial Black/Impact for asteroid letters - no confusion between C/U, O/D
+  - Letters stay upright even as asteroids rotate
 
-| Level | Name | Description | Status |
-|-------|------|-------------|--------|
-| 1 | Asteroid Defense | Type letters to shoot falling asteroids | ✅ Complete |
-| 2 | Rocket Launch | Type to fuel rocket and reach the moon | ✅ Complete |
-| 3 | Space Race | Race through an asteroid field | 🔜 Coming Soon |
-| 4 | Robot Builder | Build robots with typing commands | 🔜 Coming Soon |
+- **Extended Instructions**:
+  - 3 seconds to read instructions before countdown
+  - Tips displayed during 3-2-1-GO countdown
+  - Level-specific guidance for each game
 
-### Not Yet Implemented
-- Space Race level (asteroid dodging with word typing)
-- Robot Builder level (command typing)
-- Background music
-- Mobile touch keyboard support
-- Leaderboards
+### 📊 Adaptive Learning
 
-## 🎮 How to Play
+- Tracks letters the player struggles with
+- Shows weak letters more frequently
+- Difficulty adjusts based on accuracy:
+  - High accuracy → faster asteroids, shorter spawn intervals
+  - Low accuracy → slower pace, more time to react
 
-1. **Enter your name** when first starting the game
-2. **Complete the skill assessment** - type the letters shown to calibrate difficulty
-3. **Select a mission** from the level select screen
-4. **Type the letters** shown on screen as quickly and accurately as you can!
-5. **Build combos** by typing correctly in a row for bonus points
-6. **Earn stars** by completing levels with high accuracy
+### 🏆 Progression System
 
-### Controls
-- **A-Z Keys**: Type the displayed letters
-- **Escape**: Pause the game
+- Player profile saved to localStorage
+- Star ratings (1-3) based on performance
+- Achievements for combos (10, 25, 50 streak)
+- Level unlocking as skills improve
 
-## 🔗 URLs
+### ✨ Visual Effects
 
-- **Game URL**: https://3000-itdb2z2ffirb4kjmx5kiw-5c13a017.sandbox.novita.ai
+- Beautiful starfield background with shooting stars
+- Nebula clouds and twinkling stars
+- Particle explosions (40+ particles per asteroid)
+- Ring shockwave effects
+- Screen shake on impacts
+- Glowing projectiles with trails
+- Combo counter with visual feedback
 
-## 🛠 Technical Stack
+### 🔊 Sound Effects
+
+- Laser pew-pew sounds
+- Explosion effects (small, medium, large)
+- Combo ding with increasing pitch
+- Wrong key buzzer
+- Power-up activation sounds
+- Level complete fanfare
+
+## Technical Stack
 
 - **Frontend**: Vanilla JavaScript with HTML5 Canvas
-- **Backend**: Hono.js (Cloudflare Pages compatible)
-- **Styling**: Custom CSS with CSS variables and animations
-- **Fonts**: Google Fonts (Orbitron for display, Exo 2 for body)
-- **Audio**: Web Audio API for synthesized sound effects
-- **Storage**: localStorage for player profiles and progress
+- **Styling**: Custom CSS with space theme variables
+- **Backend**: Hono framework (lightweight)
+- **Deployment**: Cloudflare Pages
+- **Storage**: localStorage for player data
 
-## 📁 Project Structure
+## File Structure
 
 ```
 webapp/
 ├── src/
-│   └── index.tsx          # Hono server entry point
-├── public/
-│   └── static/
-│       ├── style.css      # Main stylesheet
-│       └── game/
-│           ├── main.js    # Game controller
-│           ├── utils.js   # Utility functions
-│           ├── audio.js   # Sound effects system
-│           ├── particles.js # Particle effects
-│           ├── player.js  # Player profile management
-│           ├── ui.js      # UI screens and HUD
-│           └── levels/
-│               ├── asteroid-defense.js
-│               └── rocket-launch.js
+│   └── index.tsx          # Main Hono app entry point
+├── public/static/
+│   ├── style.css          # Main stylesheet
+│   └── game/
+│       ├── utils.js       # Utility functions
+│       ├── audio.js       # Sound effects (Web Audio API)
+│       ├── particles.js   # Particle system
+│       ├── player.js      # Player profile & persistence
+│       ├── words.js       # Word dictionary for kids
+│       ├── ui.js          # UI screens and menus
+│       ├── main.js        # Game controller
+│       └── levels/
+│           ├── asteroid-defense.js
+│           └── rocket-launch.js
 ├── ecosystem.config.cjs   # PM2 configuration
-├── package.json
-├── vite.config.ts
-└── wrangler.jsonc
+├── wrangler.jsonc         # Cloudflare config
+└── package.json
 ```
 
-## 🚀 Running Locally
+## Recent Updates (v2.0)
+
+1. **Improved Font Readability**: Changed asteroid letters from Orbitron to Arial Black/Impact
+2. **Letters Stay Upright**: Asteroids rotate but letters remain readable
+3. **Extended Instructions**: 3 seconds of tips before countdown starts
+4. **Word Dictionary System**: Real words instead of random letters
+5. **Power-Up System**: Missile AoE, Hyper Laser, Force Shield
+6. **Gravity Physics**: Rocket falls when fuel runs out in Level 2
+7. **Visual Enhancements**: Shield effects, falling warnings, velocity indicators
+
+## Local Development
 
 ```bash
 # Install dependencies
 npm install
 
-# Development (with Vite)
-npm run dev
-
-# Build for production
+# Build the project
 npm run build
 
-# Run with Wrangler (Cloudflare Pages dev)
-npm run dev:sandbox
+# Run with wrangler
+npm run preview
+
+# Or use PM2 for development
+pm2 start ecosystem.config.cjs
 ```
 
-## 🎯 Recommended Next Steps
+## Deployment
 
-1. **Add Space Race level** - Word typing with spaceship dodging asteroids
-2. **Add Robot Builder level** - Sequential command typing to build robots
-3. **Add background music** - Ambient space music with volume controls
-4. **Mobile support** - On-screen keyboard for tablets
-5. **Parent dashboard** - View child's progress and statistics
-6. **Daily challenges** - New challenges each day to encourage return
-7. **Customizable rockets/ships** - Unlock cosmetics with stars
+```bash
+# Deploy to Cloudflare Pages
+npm run deploy
+```
 
-## 📊 Data Models
+## For Parents
 
-### Player Profile (localStorage)
-- Name, skill level, difficulty setting
-- Per-level progress (high scores, stars, times played)
-- Letter accuracy statistics
-- Achievement unlocks
-- Settings (sound, particles, hints)
+This game helps children:
+- Learn proper typing technique (home row keys first)
+- Build muscle memory for common words
+- Stay engaged with fun space theme and rewards
+- Progress at their own pace with adaptive difficulty
+- Feel accomplished with star ratings and achievements
 
-## 🎨 Design Philosophy
-
-This game was designed with a 7-year-old in mind:
-- **Not too easy**: Adapts as skill improves
-- **Not too hard**: Adapts when struggling
-- **Visually engaging**: Space theme with lots of animation and effects
-- **Rewarding**: Stars, achievements, combos, and celebrations
-- **Educational**: Focuses practice on weak letters
+The game tracks which letters your child struggles with and shows them more often to help them improve!
 
 ---
 
-Made with ❤️ for young space cadets learning to type!
+**Made with ❤️ for young space cadets learning to type!**

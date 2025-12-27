@@ -1247,11 +1247,99 @@ html, body {
 }
 
 .level-intro .mission-text {
-    font-size: 1.2rem;
+    font-size: 1.1rem;
     color: var(--text-secondary);
-    margin-top: 20px;
+    margin-top: 15px;
+    max-width: 500px;
+    text-align: center;
+    line-height: 1.6;
+    padding: 0 20px;
     animation: levelIntroSubtitle 1s ease-out 0.6s both;
 }
+
+.level-intro-header {
+    text-align: center;
+}
+
+.level-intro-header h1 {
+    margin-bottom: 0;
+}
+
+.level-intro-header h2 {
+    margin-top: 10px;
+}
+
+.countdown-container {
+    margin-top: 20px;
+    min-height: 100px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.ready-text {
+    font-family: var(--font-body);
+    font-size: 1.2rem;
+    color: var(--text-secondary);
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+}
+
+/* ============================================
+   LEVEL TIPS (Extended Instructions)
+   ============================================ */
+
+.level-tips {
+    margin-top: 25px;
+    padding: 20px 30px;
+    background: rgba(100, 150, 255, 0.1);
+    border: 2px solid var(--panel-border);
+    border-radius: 15px;
+    max-width: 500px;
+    animation: levelIntroSubtitle 1s ease-out 0.9s both;
+    transition: opacity 0.5s ease;
+}
+
+.level-tips h3 {
+    font-family: var(--font-display);
+    font-size: 1rem;
+    color: var(--text-accent);
+    margin-bottom: 12px;
+    text-align: center;
+    letter-spacing: 2px;
+}
+
+.level-tips ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.level-tips li {
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    color: var(--text-primary);
+    padding: 8px 0;
+    padding-left: 25px;
+    position: relative;
+    line-height: 1.4;
+}
+
+.level-tips li::before {
+    content: '⭐';
+    position: absolute;
+    left: 0;
+    font-size: 0.8rem;
+}
+
+.level-tips li:nth-child(2)::before { content: '🎯'; }
+.level-tips li:nth-child(3)::before { content: '⚠️'; }
+.level-tips li:nth-child(4)::before { content: '💡'; }
 
 /* ============================================
    COUNTDOWN
@@ -1259,20 +1347,20 @@ html, body {
 
 .countdown {
     font-family: var(--font-display);
-    font-size: 8rem;
+    font-size: 6rem;
     color: var(--text-accent);
     text-shadow: 0 0 50px rgba(255, 215, 0, 0.5);
     animation: countdownPulse 1s ease-in-out;
 }
 
 @keyframes countdownPulse {
-    0% { transform: scale(2); opacity: 0; }
-    50% { transform: scale(1); opacity: 1; }
-    100% { transform: scale(0.8); opacity: 0; }
+    0% { transform: scale(1.5); opacity: 0; }
+    30% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(0.9); opacity: 0.8; }
 }
 
 .countdown-go {
-    font-size: 6rem;
+    font-size: 5rem;
     color: var(--success-green);
     text-shadow: 0 0 50px rgba(68, 255, 136, 0.5);
 }

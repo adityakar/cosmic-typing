@@ -522,40 +522,81 @@ class GameUI {
         });
     }
     
-    // Show level intro
+    // Show level intro with extended instructions display
     showLevelIntro(levelName, levelIcon, missionText, callback) {
         this.clear();
         this.currentScreen = 'levelIntro';
         
+        // Store for use in countdown
+        this.currentLevelInfo = { levelName, levelIcon, missionText };
+        
+        // Get level-specific tips
+        const tips = this.getLevelTips(levelName);
+        const tipsHtml = tips.map(tip => `<li>${tip}</li>`).join('');
+        
         this.overlay.innerHTML = `
             <div class="level-intro" id="level-intro">
-                <h1>${levelIcon}</h1>
-                <h2>${levelName}</h2>
+                <div class="level-intro-header">
+                    <h1>${levelIcon}</h1>
+                    <h2>${levelName}</h2>
+                </div>
                 <p class="mission-text">${missionText}</p>
+                <div class="level-tips" id="level-tips">
+                    <h3>HOW TO PLAY:</h3>
+                    <ul>${tipsHtml}</ul>
+                </div>
+                <div class="countdown-container" id="countdown-container">
+                    <p class="ready-text">Get ready...</p>
+                </div>
             </div>
         `;
         
-        // Countdown after intro
+        // Extended intro delay - show instructions for 3 seconds before countdown
         setTimeout(() => {
             this.showCountdown(callback);
-        }, 2000);
+        }, 3000);
     }
     
-    // Show countdown
+    // Get level-specific tips
+    getLevelTips(levelName) {
+        const tips = {
+            'Asteroid Defense': [
+                'Type the letter on each asteroid to destroy it!',
+                'Build combos for higher scores and power-ups!',
+                'Don\'t let asteroids hit Earth!',
+                'Watch for the current WORD at the bottom - type in order!'
+            ],
+            'Rocket Launch': [
+                'Type letters to add fuel to your rocket!',
+                'Keep typing to maintain speed and altitude!',
+                'If you run out of fuel, you\'ll start falling!',
+                'Build combos to charge your BOOST meter!'
+            ]
+        };
+        return tips[levelName] || ['Type the letters as fast as you can!'];
+    }
+    
+    // Show countdown - keeps instructions visible during countdown
     showCountdown(callback) {
         let count = 3;
+        const countdownContainer = document.getElementById('countdown-container');
+        const levelTips = document.getElementById('level-tips');
         
         const showCount = () => {
-            const intro = document.getElementById('level-intro');
-            if (!intro) return;
+            if (!countdownContainer) return;
             
             if (count > 0) {
-                intro.innerHTML = `<div class="countdown">${count}</div>`;
+                // Show countdown number, keep tips visible
+                countdownContainer.innerHTML = `<div class="countdown">${count}</div>`;
                 AudioManager.playCountdown(false);
                 count--;
                 setTimeout(showCount, 1000);
             } else {
-                intro.innerHTML = `<div class="countdown countdown-go">GO!</div>`;
+                // Hide tips on GO
+                if (levelTips) {
+                    levelTips.style.opacity = '0';
+                }
+                countdownContainer.innerHTML = `<div class="countdown countdown-go">GO!</div>`;
                 AudioManager.playCountdown(true);
                 setTimeout(() => {
                     this.clear();

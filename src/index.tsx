@@ -28,6 +28,7 @@ app.get('/', (c) => {
     <script src="/static/game/audio.js"></script>
     <script src="/static/game/particles.js"></script>
     <script src="/static/game/player.js"></script>
+    <script src="/static/game/words.js"></script>
     <script src="/static/game/levels/asteroid-defense.js"></script>
     <script src="/static/game/levels/rocket-launch.js"></script>
     <script src="/static/game/ui.js"></script>

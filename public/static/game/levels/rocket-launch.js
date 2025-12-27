@@ -26,7 +26,7 @@ class RocketLaunchLevel {
         this.timeElapsed = 0;
         this.levelDuration = 60;
         
-        // Rocket state
+        // Rocket state with improved physics
         this.rocket = {
             x: 0,
             y: 0,
@@ -42,8 +42,18 @@ class RocketLaunchLevel {
             shake: 0,
             tilt: 0,
             launched: false,
-            enginePower: 0
+            enginePower: 0,
+            // New physics properties
+            gravity: 50, // Gravity pulls rocket down when no fuel
+            minVelocity: -150, // Terminal falling velocity (negative = falling)
+            isFalling: false
         };
+        
+        // Word-based typing (uses dictionary)
+        this.useWordMode = true;
+        this.currentWord = null;
+        this.currentWordIndex = 0;
+        this.wordQueue = [];
         
         // Current letter to type
         this.currentLetter = '';
@@ -71,6 +81,10 @@ class RocketLaunchLevel {
         // Adaptive difficulty
         this.letterTimer = 0;
         this.letterTimeout = this.getLetterTimeout();
+        
+        // Danger indicators
+        this.warningFlash = 0;
+        this.criticalAltitude = false;
     }
     
     getLetterTimeout() {
@@ -103,18 +117,32 @@ class RocketLaunchLevel {
         this.rocket.enginePower = 0;
         this.rocket.shake = 0;
         this.rocket.tilt = 0;
+        this.rocket.isFalling = false;
         this.boostMeter = 0;
         this.boostActive = false;
         this.stage = 'launchpad';
         this.stageProgress = 0;
+        this.warningFlash = 0;
+        this.criticalAltitude = false;
         
-        // Generate letter queue
-        this.nextLetters = [];
-        for (let i = 0; i < this.lettersQueue; i++) {
-            this.nextLetters.push(this.getNextLetter());
+        // Initialize word mode if available
+        if (this.useWordMode && window.WordDictionary) {
+            this.wordQueue = WordDictionary.getThemedWords('space', this.difficulty);
+            if (this.wordQueue.length === 0) {
+                this.wordQueue = WordDictionary.getRandomWords(20, this.difficulty);
+            }
+            this.currentWord = this.wordQueue.shift();
+            this.currentWordIndex = 0;
+            this.currentLetter = this.currentWord ? this.currentWord[0] : this.getRandomLetter();
+        } else {
+            // Fallback to random letters
+            this.nextLetters = [];
+            for (let i = 0; i < this.lettersQueue; i++) {
+                this.nextLetters.push(this.getRandomLetter());
+            }
+            this.currentLetter = this.nextLetters.shift();
+            this.nextLetters.push(this.getRandomLetter());
         }
-        this.currentLetter = this.nextLetters.shift();
-        this.nextLetters.push(this.getNextLetter());
         
         // Initialize visual elements
         this.initStars();
@@ -166,13 +194,34 @@ class RocketLaunchLevel {
         }
     }
     
-    getNextLetter() {
+    getRandomLetter() {
         // Occasionally use weak letters
         const weakLetters = this.game.player.getWeakestLetters(3);
         if (weakLetters.length > 0 && Math.random() < 0.3) {
             return Utils.randomChoice(weakLetters);
         }
         return Utils.randomChoice(this.letters);
+    }
+    
+    getNextLetter() {
+        if (this.useWordMode && this.currentWord && window.WordDictionary) {
+            this.currentWordIndex++;
+            if (this.currentWordIndex >= this.currentWord.length) {
+                // Move to next word
+                this.currentWord = this.wordQueue.shift();
+                if (!this.currentWord) {
+                    // Refill word queue
+                    this.wordQueue = WordDictionary.getThemedWords('space', this.difficulty);
+                    if (this.wordQueue.length === 0) {
+                        this.wordQueue = WordDictionary.getRandomWords(20, this.difficulty);
+                    }
+                    this.currentWord = this.wordQueue.shift();
+                }
+                this.currentWordIndex = 0;
+            }
+            return this.currentWord ? this.currentWord[this.currentWordIndex] : this.getRandomLetter();
+        }
+        return this.getRandomLetter();
     }
     
     start() {
@@ -192,8 +241,11 @@ class RocketLaunchLevel {
         if (this.state !== 'playing') return;
         
         const pressedLetter = key.toUpperCase();
+        const expectedLetter = this.useWordMode && this.currentWord 
+            ? this.currentWord[this.currentWordIndex]
+            : this.currentLetter;
         
-        if (pressedLetter === this.currentLetter) {
+        if (pressedLetter === expectedLetter) {
             this.correctKeyPress();
         } else {
             this.wrongKeyPress(pressedLetter);
@@ -205,9 +257,12 @@ class RocketLaunchLevel {
         this.maxCombo = Math.max(this.maxCombo, this.combo);
         this.correctCount++;
         
-        // Add fuel
+        // Add fuel (more fuel at higher combos)
         const fuelGain = 10 + Math.floor(this.combo / 3) * 2;
         this.rocket.fuel = Math.min(this.rocket.maxFuel, this.rocket.fuel + fuelGain);
+        
+        // Clear falling state when fuel is added
+        this.rocket.isFalling = false;
         
         // Calculate score
         const baseScore = 100;
@@ -238,7 +293,10 @@ class RocketLaunchLevel {
         this.game.showScorePopup(this.rocket.x, this.rocket.y - 80, scoreGained);
         
         // Record performance
-        this.game.player.recordLetterPerformance(this.currentLetter, true);
+        const currentLetter = this.useWordMode && this.currentWord 
+            ? this.currentWord[this.currentWordIndex]
+            : this.currentLetter;
+        this.game.player.recordLetterPerformance(currentLetter, true);
         
         // Next letter
         this.advanceToNextLetter();
@@ -281,8 +339,12 @@ class RocketLaunchLevel {
     }
     
     advanceToNextLetter() {
-        this.currentLetter = this.nextLetters.shift();
-        this.nextLetters.push(this.getNextLetter());
+        if (this.useWordMode && this.currentWord) {
+            this.currentLetter = this.getNextLetter();
+        } else {
+            this.currentLetter = this.nextLetters.shift();
+            this.nextLetters.push(this.getRandomLetter());
+        }
         this.letterTimer = Date.now();
     }
     
@@ -342,13 +404,13 @@ class RocketLaunchLevel {
             this.advanceToNextLetter();
         }
         
-        // Update rocket physics
+        // === IMPROVED ROCKET PHYSICS ===
         if (this.rocket.fuel > 0) {
-            // Consume fuel
+            // Has fuel - accelerate upward
             const fuelConsumption = 5 * dt;
             this.rocket.fuel = Math.max(0, this.rocket.fuel - fuelConsumption);
             
-            // Accelerate
+            // Accelerate (positive velocity = going up)
             const baseAcceleration = 100;
             const boostMultiplier = this.boostActive ? 2.5 : 1;
             this.rocket.velocity = Math.min(
@@ -356,23 +418,52 @@ class RocketLaunchLevel {
                 this.rocket.velocity + baseAcceleration * dt * this.rocket.enginePower
             );
             
+            this.rocket.isFalling = false;
+            
             // Engine particles
             if (this.rocket.enginePower > 0.1) {
                 this.spawnEngineParticles();
             }
         } else {
-            // No fuel - decelerate
-            this.rocket.velocity = Math.max(0, this.rocket.velocity - 50 * dt);
+            // NO FUEL - Apply gravity and decelerate
+            // First, velocity decreases (rocket slows down)
+            if (this.rocket.velocity > 0) {
+                // Still going up but slowing down
+                this.rocket.velocity = Math.max(0, this.rocket.velocity - this.rocket.gravity * dt);
+                
+                // Warning flash when slowing
+                this.warningFlash = (this.warningFlash + dt * 5) % (Math.PI * 2);
+            } else {
+                // Velocity is zero or negative - START FALLING
+                this.rocket.isFalling = true;
+                
+                // Apply gravity (accelerate downward)
+                this.rocket.velocity = Math.max(
+                    this.rocket.minVelocity, // Terminal falling velocity
+                    this.rocket.velocity - this.rocket.gravity * dt
+                );
+            }
         }
         
-        // Update altitude
+        // Update altitude (can go negative if falling below start)
+        const previousAltitude = this.rocket.altitude;
         this.rocket.altitude += this.rocket.velocity * dt;
+        
+        // Check if rocket crashed (went below 0)
+        if (this.rocket.altitude < 0 && this.rocket.isFalling) {
+            this.rocket.altitude = 0;
+            this.gameOver(false);
+            return;
+        }
         
         // Check victory (reached moon)
         if (this.rocket.altitude >= this.rocket.targetAltitude) {
             this.gameOver(true);
             return;
         }
+        
+        // Set critical altitude warning
+        this.criticalAltitude = this.rocket.isFalling && this.rocket.altitude < previousAltitude * 0.3;
         
         // Update stage based on altitude
         const altitudePercent = this.rocket.altitude / this.rocket.targetAltitude;
@@ -488,6 +579,18 @@ class RocketLaunchLevel {
             });
         } else {
             AudioManager.playGameOver();
+            
+            // Crash effects if fell
+            if (this.rocket.isFalling) {
+                this.particles.explosion(this.rocket.x, this.rocket.y, {
+                    count: 60,
+                    colors: ['#ff4444', '#ff8844', '#ffcc00'],
+                    speed: 300,
+                    size: 12,
+                    life: 1
+                });
+                this.game.screenShake.start(20, 500);
+            }
         }
         
         // Update player stats
@@ -558,6 +661,99 @@ class RocketLaunchLevel {
         this.drawFuelGauge(ctx);
         this.drawAltitudeMeter(ctx);
         this.drawBoostMeter(ctx);
+        this.drawVelocityIndicator(ctx);
+        
+        // Draw word progress if using word mode
+        if (this.useWordMode && this.currentWord) {
+            this.drawWordProgress(ctx);
+        }
+        
+        // Draw falling warning
+        if (this.rocket.isFalling) {
+            this.drawFallingWarning(ctx);
+        }
+    }
+    
+    drawWordProgress(ctx) {
+        const centerX = this.canvas.width / 2;
+        const y = 180;
+        
+        ctx.save();
+        ctx.font = 'bold 14px "Exo 2", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.fillText('WORD:', centerX - 70, y);
+        
+        // Draw the word with typed/untyped highlighting
+        let x = centerX - 30;
+        for (let i = 0; i < this.currentWord.length; i++) {
+            const letter = this.currentWord[i];
+            if (i < this.currentWordIndex) {
+                ctx.fillStyle = '#44ff88'; // Typed - green
+            } else if (i === this.currentWordIndex) {
+                ctx.fillStyle = '#ffd700'; // Current - gold
+                ctx.shadowColor = '#ffd700';
+                ctx.shadowBlur = 10;
+            } else {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.4)'; // Upcoming - dim
+                ctx.shadowBlur = 0;
+            }
+            ctx.font = i === this.currentWordIndex ? 'bold 20px "Arial Black", sans-serif' : 'bold 16px "Exo 2", sans-serif';
+            ctx.fillText(letter, x, y);
+            x += 22;
+            ctx.shadowBlur = 0;
+        }
+        
+        ctx.restore();
+    }
+    
+    drawVelocityIndicator(ctx) {
+        const x = 70;
+        const y = 30;
+        
+        ctx.save();
+        ctx.font = 'bold 14px "Orbitron", sans-serif';
+        ctx.textAlign = 'left';
+        
+        // Color based on velocity state
+        let velocityColor = '#ffffff';
+        let velocityText = `${Math.round(this.rocket.velocity)} m/s`;
+        
+        if (this.rocket.velocity < 0) {
+            velocityColor = '#ff4444';
+            velocityText = `${Math.round(this.rocket.velocity)} m/s ⬇️`;
+        } else if (this.rocket.velocity > this.rocket.maxVelocity * 0.8) {
+            velocityColor = '#44ff88';
+            velocityText = `${Math.round(this.rocket.velocity)} m/s 🚀`;
+        } else if (this.rocket.fuel <= 0 && this.rocket.velocity > 0) {
+            velocityColor = '#ffcc00';
+            velocityText = `${Math.round(this.rocket.velocity)} m/s ⚠️`;
+        }
+        
+        ctx.fillStyle = velocityColor;
+        ctx.fillText(`VELOCITY: ${velocityText}`, x, y);
+        ctx.restore();
+    }
+    
+    drawFallingWarning(ctx) {
+        // Flashing warning overlay
+        const alpha = 0.2 + 0.1 * Math.sin(Date.now() / 100);
+        
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = '#ff0000';
+        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        ctx.restore();
+        
+        // Warning text
+        ctx.save();
+        ctx.font = 'bold 32px "Orbitron", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#ff4444';
+        ctx.shadowColor = '#ff0000';
+        ctx.shadowBlur = 20;
+        ctx.fillText('⚠️ FALLING! TYPE TO ADD FUEL! ⚠️', this.canvas.width / 2, 60);
+        ctx.restore();
     }
     
     drawBackground(ctx) {
@@ -826,24 +1022,30 @@ class RocketLaunchLevel {
         ctx.arc(centerX, y, 60, 0, Math.PI * 2);
         ctx.fill();
         
-        // Current letter
+        // Current letter - improved font
+        const displayLetter = this.useWordMode && this.currentWord 
+            ? this.currentWord[this.currentWordIndex]
+            : this.currentLetter;
+        
         ctx.fillStyle = '#00ffff';
-        ctx.font = 'bold 48px "Orbitron", sans-serif';
+        ctx.font = 'bold 48px "Arial Black", Impact, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.shadowColor = '#00ffff';
         ctx.shadowBlur = 15;
-        ctx.fillText(this.currentLetter, centerX, y);
+        ctx.fillText(displayLetter, centerX, y);
         
-        // Next letters (smaller, in a row)
-        ctx.shadowBlur = 0;
-        ctx.font = 'bold 24px "Orbitron", sans-serif';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        
-        for (let i = 0; i < Math.min(3, this.nextLetters.length); i++) {
-            const alpha = 0.5 - i * 0.15;
-            ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
-            ctx.fillText(this.nextLetters[i], centerX + 80 + i * 40, y);
+        // Next letters (smaller, in a row) - only for non-word mode
+        if (!this.useWordMode || !this.currentWord) {
+            ctx.shadowBlur = 0;
+            ctx.font = 'bold 24px "Orbitron", sans-serif';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+            
+            for (let i = 0; i < Math.min(3, this.nextLetters.length); i++) {
+                const alpha = 0.5 - i * 0.15;
+                ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+                ctx.fillText(this.nextLetters[i], centerX + 80 + i * 40, y);
+            }
         }
         
         ctx.restore();
@@ -898,6 +1100,17 @@ class RocketLaunchLevel {
         
         // Percentage
         ctx.fillText(`${Math.round(fuelPercent * 100)}%`, x + width / 2, y + height + 20);
+        
+        // Warning indicator when low
+        if (fuelPercent < 0.25 && fuelPercent > 0) {
+            const warningAlpha = 0.5 + 0.5 * Math.sin(Date.now() / 100);
+            ctx.save();
+            ctx.globalAlpha = warningAlpha;
+            ctx.strokeStyle = '#ff4444';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(x - 3, y - 3, width + 6, height + 6);
+            ctx.restore();
+        }
     }
     
     drawAltitudeMeter(ctx) {
@@ -926,8 +1139,8 @@ class RocketLaunchLevel {
         }
         
         // Progress fill
-        const altitudePercent = this.rocket.altitude / this.rocket.targetAltitude;
-        const altitudeHeight = height * altitudePercent;
+        const altitudePercent = Math.max(0, this.rocket.altitude / this.rocket.targetAltitude);
+        const altitudeHeight = height * Math.min(1, altitudePercent);
         
         const altGradient = ctx.createLinearGradient(x, y + height - altitudeHeight, x, y + height);
         altGradient.addColorStop(0, '#00ffff');
@@ -967,7 +1180,7 @@ class RocketLaunchLevel {
         if (this.boostMeter <= 0 && !this.boostActive) return;
         
         const x = this.canvas.width / 2;
-        const y = 200;
+        const y = 220;
         const width = 150;
         const height = 10;
         
