@@ -3,7 +3,7 @@
 // Web Audio API based sound effects
 // ============================================
 
-class AudioManager {
+class AudioManagerClass {
     constructor() {
         this.ctx = null;
         this.masterVolume = 0.5;
@@ -322,5 +322,6 @@ class AudioManager {
     }
 }
 
-// Create global audio manager
-window.AudioManager = new AudioManager();
+// Create global audio manager instance
+const AudioManager = new AudioManagerClass();
+window.AudioManager = AudioManager;

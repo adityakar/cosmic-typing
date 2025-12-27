@@ -60,15 +60,32 @@ class GameUI {
             }
         });
         
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('Start Journey button clicked');
+            AudioManager.playClick();
+            this.handleNameSubmit();
+        });
+        
+        // Also handle touch events for mobile
+        btn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            console.log('Start Journey button touched');
             AudioManager.playClick();
             this.handleNameSubmit();
         });
     }
     
     handleNameSubmit() {
+        console.log('handleNameSubmit called');
         const input = document.getElementById('player-name-input');
+        if (!input) {
+            console.error('Input element not found!');
+            return;
+        }
         const name = input.value.trim();
+        console.log('Name entered:', name);
         
         if (name.length < 1) {
             input.classList.add('shake');
@@ -76,8 +93,13 @@ class GameUI {
             return;
         }
         
-        this.game.player.setName(name);
-        this.showSkillAssessment();
+        try {
+            this.game.player.setName(name);
+            console.log('Name set, showing skill assessment...');
+            this.showSkillAssessment();
+        } catch (error) {
+            console.error('Error in handleNameSubmit:', error);
+        }
     }
     
     // Show skill assessment screen

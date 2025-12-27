@@ -201,41 +201,51 @@ class AsteroidDefenseLevel {
         // Aim cannon at asteroid
         this.aimCannon(asteroid);
         
-        // Fire projectile
+        // Fire projectile - explosion happens when projectile reaches asteroid
         this.fireProjectile(asteroid);
         
-        // Play sounds
+        // Play laser sound
         AudioManager.playLaser();
-        
-        // Schedule explosion (when projectile hits)
-        const travelTime = this.calculateTravelTime(asteroid);
-        
-        setTimeout(() => {
-            this.explodeAsteroid(asteroid);
-        }, travelTime);
     }
     
     aimCannon(target) {
-        const dx = target.x - this.cannon.x;
-        const dy = target.y - this.cannon.y;
-        this.cannon.targetAngle = Math.atan2(dy, dx);
-    }
-    
-    fireProjectile(target) {
+        // Calculate lead time for aiming
         const speed = 800;
         const dx = target.x - this.cannon.x;
         const dy = target.y - this.cannon.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
-        const angle = Math.atan2(dy, dx);
+        const travelTime = distance / speed;
+        
+        // Aim where asteroid WILL be
+        const predictedY = target.y + (target.speed * travelTime);
+        const predictedX = target.x;
+        
+        this.cannon.targetAngle = Math.atan2(predictedY - this.cannon.y, predictedX - this.cannon.x);
+    }
+    
+    fireProjectile(target) {
+        const speed = 800;
+        
+        // Calculate lead time - aim where the asteroid WILL be
+        const dx = target.x - this.cannon.x;
+        const dy = target.y - this.cannon.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const travelTime = distance / speed;
+        
+        // Predict asteroid position when projectile arrives
+        const predictedY = target.y + (target.speed * travelTime);
+        const predictedX = target.x; // Asteroids only fall vertically
+        
+        // Aim at predicted position
+        const leadAngle = Math.atan2(predictedY - this.cannon.y, predictedX - this.cannon.x);
         
         this.projectiles.push({
             x: this.cannon.x + Math.cos(this.cannon.targetAngle) * this.cannon.length,
             y: this.cannon.y + Math.sin(this.cannon.targetAngle) * this.cannon.length,
-            vx: Math.cos(angle) * speed,
-            vy: Math.sin(angle) * speed,
+            vx: Math.cos(leadAngle) * speed,
+            vy: Math.sin(leadAngle) * speed,
             targetId: target.id,
-            targetX: target.x,
-            targetY: target.y,
+            target: target, // Store reference to actual asteroid for tracking
             color: '#00ffff',
             size: 8,
             trail: []
@@ -484,9 +494,24 @@ class AsteroidDefenseLevel {
                 }));
             }
             
-            // Check if projectile reached target or is off screen
-            const targetDist = Utils.distance(proj.x, proj.y, proj.targetX, proj.targetY);
-            if (targetDist < 30 || proj.y < -50 || proj.y > this.canvas.height + 50) {
+            // Check if projectile hit the target asteroid
+            let shouldRemove = false;
+            if (proj.target) {
+                // Check distance to actual asteroid position
+                const targetDist = Utils.distance(proj.x, proj.y, proj.target.x, proj.target.y);
+                if (targetDist < proj.target.size + 10) {
+                    // HIT! Explode the asteroid
+                    this.explodeAsteroid(proj.target);
+                    shouldRemove = true;
+                }
+            }
+            
+            // Remove if off screen
+            if (proj.y < -50 || proj.y > this.canvas.height + 50 || proj.x < -50 || proj.x > this.canvas.width + 50) {
+                shouldRemove = true;
+            }
+            
+            if (shouldRemove) {
                 this.projectiles.splice(i, 1);
             }
         }

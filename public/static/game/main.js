@@ -311,5 +311,12 @@ class CosmicTyper {
 
 // Initialize game when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-    window.game = new CosmicTyper();
+    try {
+        console.log('Initializing Cosmic Typer...');
+        window.game = new CosmicTyper();
+        console.log('Cosmic Typer initialized successfully!');
+    } catch (error) {
+        console.error('Failed to initialize game:', error);
+        document.body.innerHTML = '<div style="color: white; padding: 20px;"><h1>Error Loading Game</h1><pre>' + error.stack + '</pre></div>';
+    }
 });

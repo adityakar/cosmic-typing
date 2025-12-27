@@ -58,6 +58,7 @@ html, body {
     width: 100%;
     height: 100%;
     z-index: 1;
+    pointer-events: none;
 }
 
 #game-canvas {
@@ -67,6 +68,7 @@ html, body {
     width: 100%;
     height: 100%;
     z-index: 2;
+    pointer-events: none;
 }
 
 #ui-overlay {
@@ -76,10 +78,13 @@ html, body {
     width: 100%;
     height: 100%;
     z-index: 3;
+}
+
+#ui-overlay.game-active {
     pointer-events: none;
 }
 
-#ui-overlay > * {
+#ui-overlay.game-active > * {
     pointer-events: auto;
 }
 
