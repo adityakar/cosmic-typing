@@ -72,9 +72,13 @@ class AsteroidDefenseLevel {
         this.earth = null;
         this.shield = null;
         
-        // Adaptive difficulty
+        // Adaptive difficulty - tracks both accuracy AND speed
         this.recentAccuracy = [];
+        this.recentReactionTimes = [];  // Track how long asteroids live before being destroyed (ms)
         this.adaptiveMultiplier = 1;
+        this.lastDifficultyAdjust = 0;  // Prevent too frequent adjustments
+        this.typingStartTime = null;    // When the player started typing this session
+        this.totalCharactersTyped = 0;  // Total characters typed for WPM calculation
         
         // === POWER-UP SYSTEM ===
         this.powerUps = {
@@ -166,8 +170,12 @@ class AsteroidDefenseLevel {
         this.asteroidsDestroyed = 0;
         this.targetAsteroid = null;
         this.recentAccuracy = [];
+        this.recentReactionTimes = [];
         this.adaptiveMultiplier = 1;
+        this.lastDifficultyAdjust = 0;
         this.spawnInterval = this.spawnRate;
+        this.typingStartTime = null;
+        this.totalCharactersTyped = 0;
         
         // Initialize word queue if using word mode
         if (this.useWordMode && window.WordDictionary) {
@@ -407,6 +415,19 @@ class AsteroidDefenseLevel {
     }
     
     destroyAsteroid(asteroid) {
+        // Track reaction time (how long the asteroid was on screen)
+        if (asteroid.spawnTime) {
+            const reactionTime = Date.now() - asteroid.spawnTime;
+            this.recentReactionTimes.push(reactionTime);
+            if (this.recentReactionTimes.length > 20) this.recentReactionTimes.shift();
+        }
+        
+        // Track typing for WPM calculation
+        if (!this.typingStartTime) {
+            this.typingStartTime = Date.now();
+        }
+        this.totalCharactersTyped++;
+        
         // Aim cannon at asteroid
         this.aimCannon(asteroid);
         
@@ -856,20 +877,91 @@ class AsteroidDefenseLevel {
     }
     
     adaptDifficulty() {
+        // Need at least 10 accuracy samples and some reaction times
         if (this.recentAccuracy.length < 10) return;
         
-        const recentAcc = this.recentAccuracy.reduce((a, b) => a + b, 0) / this.recentAccuracy.length;
+        // Prevent too frequent adjustments (at least 2 seconds between adjustments)
+        const now = Date.now();
+        if (now - this.lastDifficultyAdjust < 2000) return;
+        this.lastDifficultyAdjust = now;
         
-        // If doing well, speed up slightly
-        if (recentAcc > 0.9) {
-            this.adaptiveMultiplier = Math.min(1.5, this.adaptiveMultiplier + 0.05);
-            this.spawnInterval = Math.max(800, this.spawnInterval - 50);
+        // === CALCULATE ACCURACY SCORE (0-100) ===
+        const recentAcc = this.recentAccuracy.reduce((a, b) => a + b, 0) / this.recentAccuracy.length;
+        const accuracyScore = recentAcc * 100; // 0-100
+        
+        // === CALCULATE SPEED SCORE (0-100) ===
+        // Based on average reaction time - how fast the player destroys asteroids
+        let speedScore = 50; // Default to medium
+        
+        if (this.recentReactionTimes.length >= 5) {
+            const avgReactionTime = this.recentReactionTimes.reduce((a, b) => a + b, 0) / this.recentReactionTimes.length;
+            
+            // Reaction time targets based on difficulty
+            // Lower is better - fast typers destroy asteroids quickly
+            const targetReactionTimes = {
+                'beginner': 4000,  // 4 seconds average
+                'easy': 3000,      // 3 seconds average
+                'medium': 2500,    // 2.5 seconds average
+                'hard': 2000       // 2 seconds average
+            };
+            const targetTime = targetReactionTimes[this.difficulty] || 3000;
+            
+            // Score calculation:
+            // If avgReactionTime < targetTime: score > 50 (typing fast)
+            // If avgReactionTime > targetTime: score < 50 (typing slow)
+            // Min score: 0 (very slow), Max score: 100 (very fast)
+            const ratio = targetTime / Math.max(avgReactionTime, 500); // Prevent division issues
+            speedScore = Math.max(0, Math.min(100, ratio * 50));
         }
-        // If struggling, slow down
-        else if (recentAcc < 0.6) {
+        
+        // === CALCULATE WPM SCORE (0-100) as secondary speed metric ===
+        let wpmScore = 50; // Default
+        if (this.typingStartTime && this.totalCharactersTyped > 10) {
+            const elapsedMinutes = (now - this.typingStartTime) / 60000;
+            if (elapsedMinutes > 0.1) {
+                const currentWpm = (this.totalCharactersTyped / 5) / elapsedMinutes;
+                
+                // WPM targets by difficulty
+                const targetWpms = {
+                    'beginner': 15,
+                    'easy': 25,
+                    'medium': 35,
+                    'hard': 50
+                };
+                const targetWpm = targetWpms[this.difficulty] || 25;
+                
+                // Score: 50 at target, 100 at 2x target, 0 at half target
+                wpmScore = Math.max(0, Math.min(100, (currentWpm / targetWpm) * 50));
+            }
+        }
+        
+        // === COMBINED PERFORMANCE SCORE ===
+        // Weight accuracy more heavily (50%) because it's most important
+        // Reaction time (30%) and WPM (20%) for speed
+        const combinedScore = (accuracyScore * 0.5) + (speedScore * 0.3) + (wpmScore * 0.2);
+        
+        // === ADAPTIVE ADJUSTMENT ===
+        // Only increase difficulty if BOTH accuracy is high AND speed is good
+        // Decrease difficulty if either is struggling
+        
+        if (combinedScore >= 75 && accuracyScore >= 85) {
+            // Player is doing great on both accuracy and speed - increase difficulty
+            this.adaptiveMultiplier = Math.min(1.5, this.adaptiveMultiplier + 0.03);
+            this.spawnInterval = Math.max(800, this.spawnInterval - 30);
+        } else if (combinedScore >= 60 && accuracyScore >= 75) {
+            // Player is doing okay - small increase
+            this.adaptiveMultiplier = Math.min(1.3, this.adaptiveMultiplier + 0.01);
+            this.spawnInterval = Math.max(1000, this.spawnInterval - 10);
+        } else if (combinedScore < 40 || accuracyScore < 60) {
+            // Player is struggling - decrease difficulty significantly
             this.adaptiveMultiplier = Math.max(0.6, this.adaptiveMultiplier - 0.05);
             this.spawnInterval = Math.min(3000, this.spawnInterval + 100);
+        } else if (combinedScore < 50 || speedScore < 35) {
+            // Player's speed is slow even if accuracy is okay - slight decrease
+            this.adaptiveMultiplier = Math.max(0.7, this.adaptiveMultiplier - 0.02);
+            this.spawnInterval = Math.min(2500, this.spawnInterval + 50);
         }
+        // Between 50-60 combined score: maintain current difficulty (no change)
     }
     
     getScoreForCombo() {

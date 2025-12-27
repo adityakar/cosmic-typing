@@ -41,7 +41,6 @@ class GameUI {
                     <ul>
                         <li>🖥️ Use a computer with a keyboard</li>
                         <li>📱 Or connect a Bluetooth keyboard to your device</li>
-                        <li>🔄 Or rotate to landscape mode</li>
                     </ul>
                     <div class="warning-buttons">
                         <button class="cosmic-btn primary" id="continue-anyway-btn">
