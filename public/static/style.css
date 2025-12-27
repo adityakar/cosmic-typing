@@ -1448,3 +1448,137 @@ html, body {
     from { opacity: 0; transform: scale(0.95); }
     to { opacity: 1; transform: scale(1); }
 }
+
+/* ============================================
+   RESULT SCREEN
+   ============================================ */
+
+.result-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: linear-gradient(135deg, rgba(10, 10, 30, 0.98), rgba(30, 10, 50, 0.98));
+    z-index: 100;
+    padding: 20px;
+    animation: fadeIn 0.5s ease-out;
+}
+
+.result-screen h2 {
+    font-family: var(--font-display);
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+}
+
+.result-screen h2.victory {
+    color: var(--star-yellow);
+    text-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
+}
+
+.result-screen h2.defeat {
+    color: var(--danger-red);
+    text-shadow: 0 0 30px rgba(255, 68, 68, 0.5);
+}
+
+.result-subtitle {
+    font-family: var(--font-body);
+    font-size: 1.2rem;
+    color: var(--text-secondary);
+    margin-bottom: 30px;
+}
+
+.stars-earned {
+    display: flex;
+    justify-content: center;
+    gap: 25px;
+    margin-bottom: 30px;
+    min-height: 80px;
+}
+
+.star-large {
+    font-size: 3.5rem;
+    transition: all 0.3s ease;
+}
+
+.star-large.empty {
+    opacity: 0.2;
+    filter: grayscale(100%);
+}
+
+.star-large.earned.pending {
+    opacity: 0;
+    transform: scale(0);
+}
+
+.star-large.earned.revealed {
+    opacity: 1;
+    animation: starReveal 0.5s ease-out forwards;
+}
+
+@keyframes starReveal {
+    0% { 
+        opacity: 0; 
+        transform: scale(0) rotate(-180deg);
+    }
+    50% { 
+        opacity: 1; 
+        transform: scale(1.5) rotate(10deg);
+    }
+    70% {
+        transform: scale(0.9) rotate(-5deg);
+    }
+    100% { 
+        opacity: 1; 
+        transform: scale(1) rotate(0deg);
+    }
+}
+
+.result-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 20px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--panel-border);
+    border-radius: 15px;
+    padding: 25px;
+    margin-bottom: 30px;
+    max-width: 500px;
+    width: 100%;
+}
+
+.result-stat {
+    text-align: center;
+}
+
+.result-stat .value {
+    font-family: var(--font-display);
+    font-size: 1.8rem;
+    color: var(--laser-cyan);
+    margin-bottom: 5px;
+}
+
+.result-stat .label {
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.result-buttons {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.result-buttons .cosmic-btn {
+    min-width: 140px;
+}

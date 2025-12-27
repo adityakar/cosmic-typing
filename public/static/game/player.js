@@ -129,7 +129,11 @@ class PlayerProfile {
     }
     
     // Update skill level based on performance
-    updateSkill(accuracy, wpm, lettersTyped) {
+    // ONLY called on VICTORY - not on failure!
+    updateSkill(accuracy, wpm, lettersTyped, victory = true) {
+        // Only update skill progression on victory
+        if (!victory) return 0;
+        
         const skill = this.data.skill;
         
         // Update totals
@@ -143,19 +147,19 @@ class PlayerProfile {
         // Update WPM average (weighted recent performance more)
         skill.avgWPM = skill.avgWPM * 0.7 + wpm * 0.3;
         
-        // Add experience
-        const expGained = Math.round(lettersTyped * accuracy * 10);
+        // Add experience - MORE GENEROUS for victories
+        const expGained = Math.round(lettersTyped * accuracy * 15); // Increased from 10
         skill.experience += expGained;
         
-        // Level up check
+        // Level up check - MORE FORGIVING thresholds
         const expNeeded = this.getExpForLevel(skill.level + 1);
         if (skill.experience >= expNeeded) {
             skill.level++;
             this.checkAchievement('level_' + skill.level);
         }
         
-        // Update difficulty based on performance
-        this.adjustDifficulty();
+        // DON'T auto-adjust difficulty on skill update
+        // Let the player stay at their current difficulty unless they specifically excel
         
         this.saveData();
         return expGained;
@@ -176,17 +180,22 @@ class PlayerProfile {
     }
     
     // Adjust difficulty based on recent performance
+    // VERY CONSERVATIVE - only increases difficulty with sustained excellent performance
+    // Kids should stay at comfortable levels to build confidence
     adjustDifficulty() {
         const skill = this.data.skill;
         const accuracy = skill.avgAccuracy;
         const level = skill.level;
+        const gamesPlayed = this.data.progress.gamesPlayed;
+        const wpm = skill.avgWPM;
         
-        // Determine appropriate difficulty
-        if (accuracy > 0.9 && level >= 5) {
+        // Require BOTH high accuracy AND decent WPM for difficulty increases
+        // This prevents "slow but accurate" players from facing harder difficulty
+        if (accuracy > 0.95 && wpm >= 30 && level >= 12 && gamesPlayed >= 30) {
             skill.difficulty = 'hard';
-        } else if (accuracy > 0.8 && level >= 3) {
+        } else if (accuracy > 0.90 && wpm >= 20 && level >= 8 && gamesPlayed >= 15) {
             skill.difficulty = 'medium';
-        } else if (accuracy > 0.7 && level >= 2) {
+        } else if (accuracy > 0.80 && wpm >= 12 && level >= 4 && gamesPlayed >= 8) {
             skill.difficulty = 'easy';
         } else {
             skill.difficulty = 'beginner';

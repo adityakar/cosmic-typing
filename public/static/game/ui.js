@@ -621,9 +621,9 @@ class GameUI {
         const tips = {
             'Asteroid Defense': [
                 'Type the letter on each asteroid to destroy it!',
-                'Build combos for higher scores and power-ups!',
-                'Don\'t let asteroids hit Earth!',
-                'Watch for the current WORD at the bottom - type in order!'
+                'Complete waves to earn stars!',
+                'Build combos for power-ups!',
+                'Keep a combo to heal Earth!'
             ],
             'Rocket Launch': [
                 'Type letters to add fuel to your rocket!',
@@ -710,24 +710,42 @@ class GameUI {
         }
     }
     
-    // Show result screen
+    // Show result screen - IMPROVED with wave info and better star animation
     showResultScreen(results) {
         this.currentScreen = 'result';
         
+        // Stars start hidden and appear one by one
         const starsHtml = [1, 2, 3].map(i => 
-            `<span class="star-large ${i <= results.stars ? 'earned' : ''}" style="animation-delay: ${i * 0.3}s">⭐</span>`
+            `<span class="star-large ${i <= results.stars ? 'earned pending' : 'empty'}" data-star="${i}">
+                ${i <= results.stars ? '⭐' : '☆'}
+            </span>`
         ).join('');
+        
+        // Show waves completed if available
+        const waveInfo = results.wavesCompleted !== undefined ? 
+            `<div class="result-stat">
+                <div class="value">Wave ${results.wavesCompleted}</div>
+                <div class="label">Reached</div>
+            </div>` : '';
+        
+        // Encouraging message based on performance
+        let subtitle = '';
+        if (results.victory) {
+            if (results.stars === 3) subtitle = '🏆 PERFECT! You\'re amazing!';
+            else if (results.stars === 2) subtitle = '⭐ Great job! Can you get 3 stars?';
+            else subtitle = '👍 Nice work! Keep practicing!';
+        } else {
+            subtitle = '💪 Don\'t give up! You can do it!';
+        }
         
         this.overlay.innerHTML = `
             <div class="result-screen">
                 <h2 class="${results.victory ? 'victory' : 'defeat'}">
                     ${results.victory ? '🎉 MISSION COMPLETE!' : '💥 MISSION FAILED'}
                 </h2>
-                <p class="result-subtitle">
-                    ${results.victory ? 'Excellent work, Space Cadet!' : 'Don\'t give up! Try again!'}
-                </p>
+                <p class="result-subtitle">${subtitle}</p>
                 
-                <div class="stars-earned">
+                <div class="stars-earned" id="stars-container">
                     ${starsHtml}
                 </div>
                 
@@ -736,6 +754,7 @@ class GameUI {
                         <div class="value">${Utils.formatNumber(results.score)}</div>
                         <div class="label">Score</div>
                     </div>
+                    ${waveInfo}
                     <div class="result-stat">
                         <div class="value">${results.accuracy}%</div>
                         <div class="label">Accuracy</div>
@@ -743,10 +762,6 @@ class GameUI {
                     <div class="result-stat">
                         <div class="value">${results.maxCombo}x</div>
                         <div class="label">Max Combo</div>
-                    </div>
-                    <div class="result-stat">
-                        <div class="value">${Utils.formatTime(results.timeElapsed)}</div>
-                        <div class="label">Time</div>
                     </div>
                 </div>
                 
@@ -759,15 +774,25 @@ class GameUI {
             </div>
         `;
         
-        // Animate stars appearing
+        // Animate stars appearing ONE BY ONE (like Angry Birds!)
         setTimeout(() => {
-            document.querySelectorAll('.star-large.earned').forEach((star, i) => {
+            const earnedStars = document.querySelectorAll('.star-large.earned');
+            earnedStars.forEach((star, i) => {
                 setTimeout(() => {
-                    star.style.animation = 'starEarn 0.5s ease forwards';
+                    star.classList.remove('pending');
+                    star.classList.add('revealed');
+                    star.style.transform = 'scale(1.5)';
+                    star.style.textShadow = '0 0 30px #ffd700, 0 0 60px #ffd700';
                     AudioManager.playStarCollect();
-                }, i * 300);
+                    
+                    // Shrink back after pop
+                    setTimeout(() => {
+                        star.style.transform = 'scale(1)';
+                        star.style.textShadow = '0 0 10px #ffd700';
+                    }, 200);
+                }, i * 500); // 500ms between each star (longer delay for anticipation)
             });
-        }, 500);
+        }, 800);
         
         document.getElementById('menu-btn').addEventListener('click', () => {
             AudioManager.playClick();
