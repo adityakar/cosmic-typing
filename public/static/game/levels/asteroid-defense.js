@@ -107,6 +107,7 @@ class AsteroidDefenseLevel {
                 icon: '🚀',
                 active: false,
                 ready: false,
+                notificationShown: false, // Track if notification was shown
                 comboRequired: 5,
                 blastRadius: 250,
                 damage: 100,
@@ -118,6 +119,7 @@ class AsteroidDefenseLevel {
                 icon: '⚡',
                 active: false,
                 ready: false,
+                notificationShown: false, // Track if notification was shown
                 comboRequired: 10,
                 shotsRemaining: 0,
                 maxShots: 3,
@@ -225,8 +227,10 @@ class AsteroidDefenseLevel {
         // Reset power-ups
         this.powerUps.missile.active = false;
         this.powerUps.missile.ready = false;
+        this.powerUps.missile.notificationShown = false;
         this.powerUps.laser.active = false;
         this.powerUps.laser.ready = false;
+        this.powerUps.laser.notificationShown = false;
         this.powerUps.laser.shotsRemaining = 0;
         this.powerUps.orbitalStrike.available = false;
         this.powerUps.orbitalStrike.active = false;
@@ -252,31 +256,40 @@ class AsteroidDefenseLevel {
         this.state = 'playing';
     }
     
-    // Show wave start notification
+    // Show wave start notification - CLEAN single message
     showWaveStart() {
+        // Clear any lingering messages first
+        this.powerUpIndicators = [];
+        
         const waveText = this.currentWave <= 3 ? `WAVE ${this.currentWave}` :
                          this.currentWave <= 6 ? `WAVE ${this.currentWave} - HARDER!` :
                          `WAVE ${this.currentWave} - INTENSE!`;
         
+        const target = this.waveTargets[this.currentWave] || this.waveTargets[10];
+        
+        // Single combined message - wave number and target together
         this.powerUpIndicators.push({
             text: `🌊 ${waveText} 🌊`,
             x: this.canvas.width / 2,
-            y: this.canvas.height / 2 - 80,
+            y: this.canvas.height / 2 - 50,
             alpha: 1,
             scale: 2,
-            life: 2.5
+            life: 2.5,
+            fixed: true // Don't float up
         });
         
-        // Show target
-        const target = this.waveTargets[this.currentWave] || this.waveTargets[10];
-        this.powerUpIndicators.push({
-            text: `Destroy ${target} asteroids!`,
-            x: this.canvas.width / 2,
-            y: this.canvas.height / 2 - 30,
-            alpha: 1,
-            scale: 1.2,
-            life: 2.5
-        });
+        // Target shown slightly after to avoid overlap
+        setTimeout(() => {
+            this.powerUpIndicators.push({
+                text: `Destroy ${target} asteroids!`,
+                x: this.canvas.width / 2,
+                y: this.canvas.height / 2 + 10,
+                alpha: 1,
+                scale: 1.3,
+                life: 2,
+                fixed: true
+            });
+        }, 300);
     }
     
     getNextLetter() {
@@ -436,6 +449,9 @@ class AsteroidDefenseLevel {
                         
                         this.score += 50;
                         this.game.showScorePopup(asteroid.x, asteroid.y, 50);
+                        
+                        // Check wave completion after each asteroid destroyed by orbital strike
+                        this.checkWaveCompletion();
                     }
                 }, index * 50);
             });
@@ -723,12 +739,15 @@ class AsteroidDefenseLevel {
         }
     }
     
-    // Check if wave is complete
+    // Check if wave is complete - triggers immediately when target is reached
     checkWaveCompletion() {
+        // Don't check during transition
+        if (this.isInWaveTransition) return;
+        
         const target = this.waveTargets[this.currentWave] || this.waveTargets[10];
         
         if (this.asteroidsDestroyedThisWave >= target) {
-            // Wave complete!
+            // Wave complete! Trigger immediately
             this.startWaveTransition();
         }
     }
@@ -737,6 +756,10 @@ class AsteroidDefenseLevel {
     startWaveTransition() {
         this.isInWaveTransition = true;
         this.waveTransitionTime = 3; // 3 seconds between waves
+        
+        // Clear ALL visual effects to prevent frozen animations
+        this.hyperLaserBeams = [];
+        this.projectiles = [];
         
         // Clear remaining asteroids gracefully
         this.asteroids.forEach(asteroid => {
@@ -750,60 +773,53 @@ class AsteroidDefenseLevel {
         });
         this.asteroids = [];
         
-        // Show wave complete message
-        this.powerUpIndicators.push({
-            text: `✨ WAVE ${this.currentWave} COMPLETE! ✨`,
-            x: this.canvas.width / 2,
-            y: this.canvas.height / 2 - 50,
-            alpha: 1,
-            scale: 2,
-            life: 2.5
-        });
+        // Clear any existing notifications to prevent overlap
+        this.powerUpIndicators = [];
         
-        // Bonus for wave completion
+        // Add wave bonus silently
         const waveBonus = this.currentWave * 200;
         this.score += waveBonus;
+        
+        // Show SINGLE combined wave complete message with star info
+        let messageText = `✨ WAVE ${this.currentWave} COMPLETE! +${waveBonus} ✨`;
+        let starText = '';
+        
+        if (this.currentWave === 3) {
+            starText = '⭐ 1 STAR EARNED!';
+        } else if (this.currentWave === 6) {
+            starText = '⭐⭐ 2 STARS EARNED!';
+        } else if (this.currentWave === 10) {
+            starText = '⭐⭐⭐ 3 STARS! AMAZING!';
+        }
+        
+        // Main wave complete message
         this.powerUpIndicators.push({
-            text: `+${waveBonus} Wave Bonus!`,
+            text: messageText,
             x: this.canvas.width / 2,
-            y: this.canvas.height / 2,
+            y: this.canvas.height / 2 - 30,
             alpha: 1,
-            scale: 1.5,
-            life: 2
+            scale: 1.8,
+            life: 2.5,
+            fixed: true // Don't float up
         });
+        
+        // Star message (if applicable) - shown below with delay
+        if (starText) {
+            setTimeout(() => {
+                this.powerUpIndicators.push({
+                    text: starText,
+                    x: this.canvas.width / 2,
+                    y: this.canvas.height / 2 + 30,
+                    alpha: 1,
+                    scale: 1.6,
+                    life: 2,
+                    fixed: true
+                });
+            }, 500);
+        }
         
         AudioManager.playLevelComplete();
         this.particles.confetti(0, 0, this.canvas.width, { count: 50 });
-        
-        // Check for star milestones
-        if (this.currentWave === 3) {
-            this.powerUpIndicators.push({
-                text: '⭐ 1 STAR EARNED!',
-                x: this.canvas.width / 2,
-                y: this.canvas.height / 2 + 50,
-                alpha: 1,
-                scale: 1.8,
-                life: 2.5
-            });
-        } else if (this.currentWave === 6) {
-            this.powerUpIndicators.push({
-                text: '⭐⭐ 2 STARS EARNED!',
-                x: this.canvas.width / 2,
-                y: this.canvas.height / 2 + 50,
-                alpha: 1,
-                scale: 1.8,
-                life: 2.5
-            });
-        } else if (this.currentWave === 10) {
-            this.powerUpIndicators.push({
-                text: '⭐⭐⭐ 3 STARS! AMAZING!',
-                x: this.canvas.width / 2,
-                y: this.canvas.height / 2 + 50,
-                alpha: 1,
-                scale: 2,
-                life: 3
-            });
-        }
     }
     
     recordHit(correct, letter) {
@@ -839,17 +855,27 @@ class AsteroidDefenseLevel {
     }
     
     checkPowerUps() {
+        // Missile: Show notification only ONCE when first ready
         if (this.combo >= this.powerUps.missile.comboRequired && !this.powerUps.missile.ready) {
             this.powerUps.missile.ready = true;
-            this.showPowerUpNotification(this.powerUps.missile);
+            // Only show notification if not shown before in this activation cycle
+            if (!this.powerUps.missile.notificationShown) {
+                this.powerUps.missile.notificationShown = true;
+                this.showPowerUpNotification(this.powerUps.missile);
+            }
         }
         
+        // Hyper Laser: Show notification only ONCE when first activated
         if (this.combo >= this.powerUps.laser.comboRequired && !this.powerUps.laser.active && !this.powerUps.laser.ready) {
             this.powerUps.laser.ready = true;
             this.powerUps.laser.active = true;
             this.powerUps.laser.shotsRemaining = this.powerUps.laser.maxShots;
             this.powerUps.laser.activatedAt = Date.now();
-            this.showPowerUpNotification(this.powerUps.laser);
+            // Only show notification if not shown before in this activation cycle
+            if (!this.powerUps.laser.notificationShown) {
+                this.powerUps.laser.notificationShown = true;
+                this.showPowerUpNotification(this.powerUps.laser);
+            }
         }
         
         if (this.combo >= this.powerUps.orbitalStrike.comboRequired && 
@@ -905,7 +931,12 @@ class AsteroidDefenseLevel {
         this.combo = 0;
         this.wrongCount++;
         
+        // Reset missile ready state AND notification flag so it can show again next time
         this.powerUps.missile.ready = false;
+        this.powerUps.missile.notificationShown = false;
+        
+        // Reset laser notification flag when combo breaks (so it shows on next activation)
+        this.powerUps.laser.notificationShown = false;
         
         AudioManager.playWrong();
         this.game.flashScreen('#ff4444');
@@ -1088,10 +1119,13 @@ class AsteroidDefenseLevel {
         // Update power-up indicators
         for (let i = this.powerUpIndicators.length - 1; i >= 0; i--) {
             const indicator = this.powerUpIndicators[i];
-            indicator.y -= 30 * dt;
+            // Only float up if not marked as fixed
+            if (!indicator.fixed) {
+                indicator.y -= 30 * dt;
+                indicator.scale = 1 + (1 - indicator.life / 2) * 0.5;
+            }
             indicator.life -= dt;
-            indicator.alpha = indicator.life / 2;
-            indicator.scale = 1 + (1 - indicator.life / 2) * 0.5;
+            indicator.alpha = Math.min(1, indicator.life / 1.5); // Fade out in last 1.5s
             
             if (indicator.life <= 0) {
                 this.powerUpIndicators.splice(i, 1);
@@ -1577,8 +1611,9 @@ class AsteroidDefenseLevel {
         ctx.shadowColor = '#ff00ff';
         ctx.shadowBlur = 20 + pulse * 20;
         
-        const width = 320;
-        const height = 45;
+        // Wider box to fit the text properly
+        const width = 380;
+        const height = 50;
         ctx.beginPath();
         ctx.roundRect(x - width/2, y - height/2, width, height, 12);
         ctx.fill();
@@ -1586,7 +1621,8 @@ class AsteroidDefenseLevel {
         
         ctx.globalAlpha = 1;
         ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 18px "Orbitron", sans-serif';
+        // Slightly smaller font to fit better
+        ctx.font = 'bold 16px "Orbitron", sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.shadowColor = '#ff00ff';
@@ -1632,6 +1668,8 @@ class AsteroidDefenseLevel {
     drawPowerUpStatus(ctx) {
         const startX = 20;
         const y = 110;
+        const boxWidth = 175; // Wider boxes to fit text
+        const boxHeight = 32;
         let offsetY = 0;
         
         ctx.save();
@@ -1640,41 +1678,41 @@ class AsteroidDefenseLevel {
         if (missile.ready || this.combo >= missile.comboRequired * 0.5) {
             ctx.globalAlpha = missile.ready ? 1 : 0.4;
             ctx.fillStyle = missile.ready ? missile.color + '44' : 'rgba(0, 0, 0, 0.5)';
-            ctx.fillRect(startX, y + offsetY, 140, 30);
+            ctx.fillRect(startX, y + offsetY, boxWidth, boxHeight);
             ctx.strokeStyle = missile.ready ? missile.color : '#666';
             ctx.lineWidth = 2;
-            ctx.strokeRect(startX, y + offsetY, 140, 30);
-            ctx.font = '14px "Exo 2", sans-serif';
+            ctx.strokeRect(startX, y + offsetY, boxWidth, boxHeight);
+            ctx.font = '13px "Exo 2", sans-serif';
             ctx.fillStyle = missile.ready ? '#ffffff' : '#888';
             ctx.textAlign = 'left';
-            ctx.fillText(`${missile.icon} ${missile.name}`, startX + 5, y + offsetY + 20);
+            ctx.fillText(`${missile.icon} ${missile.name}`, startX + 8, y + offsetY + 21);
             ctx.textAlign = 'right';
             ctx.fillStyle = missile.ready ? '#44ff88' : '#888';
-            ctx.fillText(missile.ready ? 'READY!' : `${this.combo}/${missile.comboRequired}`, startX + 135, y + offsetY + 20);
-            offsetY += 35;
+            ctx.fillText(missile.ready ? 'READY' : `${this.combo}/${missile.comboRequired}`, startX + boxWidth - 8, y + offsetY + 21);
+            offsetY += boxHeight + 5;
         }
         
         const laser = this.powerUps.laser;
         if (laser.active || laser.ready || this.combo >= laser.comboRequired * 0.5) {
             ctx.globalAlpha = laser.active ? 1 : 0.4;
             ctx.fillStyle = laser.active ? laser.color + '44' : 'rgba(0, 0, 0, 0.5)';
-            ctx.fillRect(startX, y + offsetY, 140, 30);
+            ctx.fillRect(startX, y + offsetY, boxWidth, boxHeight);
             ctx.strokeStyle = laser.active ? laser.color : '#666';
             ctx.lineWidth = 2;
-            ctx.strokeRect(startX, y + offsetY, 140, 30);
-            ctx.font = '14px "Exo 2", sans-serif';
+            ctx.strokeRect(startX, y + offsetY, boxWidth, boxHeight);
+            ctx.font = '13px "Exo 2", sans-serif';
             ctx.fillStyle = laser.active ? '#ffffff' : '#888';
             ctx.textAlign = 'left';
-            ctx.fillText(`${laser.icon} ${laser.name}`, startX + 5, y + offsetY + 20);
+            ctx.fillText(`${laser.icon} ${laser.name}`, startX + 8, y + offsetY + 21);
             ctx.textAlign = 'right';
             if (laser.active) {
                 ctx.fillStyle = '#00ffff';
-                ctx.fillText(`${laser.shotsRemaining} shots`, startX + 135, y + offsetY + 20);
+                ctx.fillText(`${laser.shotsRemaining} shots`, startX + boxWidth - 8, y + offsetY + 21);
             } else {
                 ctx.fillStyle = '#888';
-                ctx.fillText(`${this.combo}/${laser.comboRequired}`, startX + 135, y + offsetY + 20);
+                ctx.fillText(`${this.combo}/${laser.comboRequired}`, startX + boxWidth - 8, y + offsetY + 21);
             }
-            offsetY += 35;
+            offsetY += boxHeight + 5;
         }
         
         const strike = this.powerUps.orbitalStrike;
@@ -1683,21 +1721,21 @@ class AsteroidDefenseLevel {
             if (showProgress) {
                 ctx.globalAlpha = strike.available ? 1 : 0.4;
                 ctx.fillStyle = strike.available ? strike.color + '44' : 'rgba(0, 0, 0, 0.5)';
-                ctx.fillRect(startX, y + offsetY, 150, 30);
+                ctx.fillRect(startX, y + offsetY, boxWidth, boxHeight);
                 ctx.strokeStyle = strike.available ? strike.color : '#666';
                 ctx.lineWidth = 2;
-                ctx.strokeRect(startX, y + offsetY, 150, 30);
-                ctx.font = '14px "Exo 2", sans-serif';
+                ctx.strokeRect(startX, y + offsetY, boxWidth, boxHeight);
+                ctx.font = '13px "Exo 2", sans-serif';
                 ctx.fillStyle = strike.available ? '#ffffff' : '#888';
                 ctx.textAlign = 'left';
-                ctx.fillText(`${strike.icon} ${strike.name}`, startX + 5, y + offsetY + 20);
+                ctx.fillText(`${strike.icon} ${strike.name}`, startX + 8, y + offsetY + 21);
                 ctx.textAlign = 'right';
                 if (strike.available) {
                     ctx.fillStyle = '#ff00ff';
-                    ctx.fillText('SPACE!', startX + 145, y + offsetY + 20);
+                    ctx.fillText('SPACE', startX + boxWidth - 8, y + offsetY + 21);
                 } else if (!strike.used) {
                     ctx.fillStyle = '#888';
-                    ctx.fillText(`${this.combo}/${strike.comboRequired}`, startX + 145, y + offsetY + 20);
+                    ctx.fillText(`${this.combo}/${strike.comboRequired}`, startX + boxWidth - 8, y + offsetY + 21);
                 }
             }
         }

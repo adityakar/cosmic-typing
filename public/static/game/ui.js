@@ -710,23 +710,16 @@ class GameUI {
         }
     }
     
-    // Show result screen - IMPROVED with wave info and better star animation
+    // Show result screen - ANGRY BIRDS STYLE with count-up animation
     showResultScreen(results) {
         this.currentScreen = 'result';
         
-        // Stars start hidden and appear one by one
+        // Stars start hidden
         const starsHtml = [1, 2, 3].map(i => 
             `<span class="star-large ${i <= results.stars ? 'earned pending' : 'empty'}" data-star="${i}">
                 ${i <= results.stars ? '⭐' : '☆'}
             </span>`
         ).join('');
-        
-        // Show waves completed if available
-        const waveInfo = results.wavesCompleted !== undefined ? 
-            `<div class="result-stat">
-                <div class="value">Wave ${results.wavesCompleted}</div>
-                <div class="label">Reached</div>
-            </div>` : '';
         
         // Encouraging message based on performance
         let subtitle = '';
@@ -738,6 +731,13 @@ class GameUI {
             subtitle = '💪 Don\'t give up! You can do it!';
         }
         
+        // Show waves completed if available
+        const waveInfo = results.wavesCompleted !== undefined ? 
+            `<div class="result-stat" data-stat="wave">
+                <div class="value" data-target="${results.wavesCompleted}" data-prefix="Wave ">Wave 0</div>
+                <div class="label">Reached</div>
+            </div>` : '';
+        
         this.overlay.innerHTML = `
             <div class="result-screen">
                 <h2 class="${results.victory ? 'victory' : 'defeat'}">
@@ -745,27 +745,27 @@ class GameUI {
                 </h2>
                 <p class="result-subtitle">${subtitle}</p>
                 
-                <div class="stars-earned" id="stars-container">
+                <div class="stars-earned" id="stars-container" style="opacity: 0;">
                     ${starsHtml}
                 </div>
                 
                 <div class="result-stats">
-                    <div class="result-stat">
-                        <div class="value">${Utils.formatNumber(results.score)}</div>
+                    <div class="result-stat" data-stat="score">
+                        <div class="value" data-target="${results.score}" data-suffix="">0</div>
                         <div class="label">Score</div>
                     </div>
                     ${waveInfo}
-                    <div class="result-stat">
-                        <div class="value">${results.accuracy}%</div>
+                    <div class="result-stat" data-stat="accuracy">
+                        <div class="value" data-target="${results.accuracy}" data-suffix="%">0%</div>
                         <div class="label">Accuracy</div>
                     </div>
-                    <div class="result-stat">
-                        <div class="value">${results.maxCombo}x</div>
+                    <div class="result-stat" data-stat="combo">
+                        <div class="value" data-target="${results.maxCombo}" data-suffix="x">0x</div>
                         <div class="label">Max Combo</div>
                     </div>
                 </div>
                 
-                <div class="result-buttons">
+                <div class="result-buttons" style="opacity: 0;">
                     <button class="cosmic-btn secondary" id="menu-btn">MENU</button>
                     <button class="cosmic-btn primary" id="retry-btn">
                         ${results.victory ? 'PLAY AGAIN' : 'TRY AGAIN'}
@@ -774,25 +774,8 @@ class GameUI {
             </div>
         `;
         
-        // Animate stars appearing ONE BY ONE (like Angry Birds!)
-        setTimeout(() => {
-            const earnedStars = document.querySelectorAll('.star-large.earned');
-            earnedStars.forEach((star, i) => {
-                setTimeout(() => {
-                    star.classList.remove('pending');
-                    star.classList.add('revealed');
-                    star.style.transform = 'scale(1.5)';
-                    star.style.textShadow = '0 0 30px #ffd700, 0 0 60px #ffd700';
-                    AudioManager.playStarCollect();
-                    
-                    // Shrink back after pop
-                    setTimeout(() => {
-                        star.style.transform = 'scale(1)';
-                        star.style.textShadow = '0 0 10px #ffd700';
-                    }, 200);
-                }, i * 500); // 500ms between each star (longer delay for anticipation)
-            });
-        }, 800);
+        // Angry Birds style count-up animation
+        this.animateResultStats(results);
         
         document.getElementById('menu-btn').addEventListener('click', () => {
             AudioManager.playClick();
@@ -803,6 +786,102 @@ class GameUI {
             AudioManager.playClick();
             this.game.restartLevel();
         });
+    }
+    
+    // Animate stats counting up one by one (Angry Birds style)
+    animateResultStats(results) {
+        const stats = document.querySelectorAll('.result-stat');
+        let delay = 300; // Initial delay
+        
+        stats.forEach((stat, index) => {
+            setTimeout(() => {
+                const valueEl = stat.querySelector('.value');
+                const target = parseInt(valueEl.dataset.target) || 0;
+                const suffix = valueEl.dataset.suffix || '';
+                const prefix = valueEl.dataset.prefix || '';
+                
+                // Animate count-up
+                this.animateCountUp(valueEl, target, prefix, suffix, 800);
+                
+                // Play tick sound during animation
+                AudioManager.playClick();
+            }, delay + index * 600); // 600ms between each stat
+        });
+        
+        // Show stars after all stats
+        const totalStatsTime = delay + stats.length * 600 + 800;
+        setTimeout(() => {
+            const starsContainer = document.getElementById('stars-container');
+            if (starsContainer) {
+                starsContainer.style.opacity = '1';
+                starsContainer.style.transition = 'opacity 0.3s ease';
+            }
+            
+            // Animate stars appearing ONE BY ONE
+            const earnedStars = document.querySelectorAll('.star-large.earned');
+            earnedStars.forEach((star, i) => {
+                setTimeout(() => {
+                    star.classList.remove('pending');
+                    star.classList.add('revealed');
+                    star.style.transform = 'scale(1.5)';
+                    star.style.textShadow = '0 0 30px #ffd700, 0 0 60px #ffd700';
+                    AudioManager.playStarCollect();
+                    
+                    setTimeout(() => {
+                        star.style.transform = 'scale(1)';
+                        star.style.textShadow = '0 0 10px #ffd700';
+                    }, 200);
+                }, i * 500);
+            });
+        }, totalStatsTime);
+        
+        // Show buttons after stars
+        const buttonsDelay = totalStatsTime + results.stars * 500 + 500;
+        setTimeout(() => {
+            const buttons = document.querySelector('.result-buttons');
+            if (buttons) {
+                buttons.style.opacity = '1';
+                buttons.style.transition = 'opacity 0.3s ease';
+            }
+        }, buttonsDelay);
+    }
+    
+    // Animate a number counting up
+    animateCountUp(element, target, prefix, suffix, duration) {
+        const startTime = Date.now();
+        const startValue = 0;
+        
+        const tick = () => {
+            const elapsed = Date.now() - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            
+            // Ease out curve for satisfying feel
+            const easeOut = 1 - Math.pow(1 - progress, 3);
+            const current = Math.round(startValue + (target - startValue) * easeOut);
+            
+            if (prefix) {
+                element.textContent = `${prefix}${current}${suffix}`;
+            } else {
+                element.textContent = Utils.formatNumber(current) + suffix;
+            }
+            
+            // Play tick sounds at intervals during count
+            if (progress < 1 && Math.random() < 0.15) {
+                // Subtle tick sound (using existing correct sound at lower volume conceptually)
+            }
+            
+            if (progress < 1) {
+                requestAnimationFrame(tick);
+            } else {
+                // Final value with emphasis
+                element.style.transform = 'scale(1.1)';
+                setTimeout(() => {
+                    element.style.transform = 'scale(1)';
+                }, 150);
+            }
+        };
+        
+        tick();
     }
     
     // Show achievement popup
