@@ -42,10 +42,10 @@ class AsteroidDefenseLevel {
             4: 12,  // Wave 4: Destroy 12 asteroids
             5: 15,  // Wave 5: Destroy 15 asteroids
             6: 18,  // Wave 6: Destroy 18 asteroids (2 stars)
-            7: 20,  // Wave 7+: Endless challenge
-            8: 22,
-            9: 25,
-            10: 30  // Wave 10: 3 stars!
+            7: 22,  // Wave 7+: Harder challenge begins!
+            8: 26,  // Increased targets
+            9: 30,  // Getting serious
+            10: 35  // Wave 10: 3 stars! - The ultimate challenge
         };
         
         // Asteroids
@@ -165,13 +165,33 @@ class AsteroidDefenseLevel {
     // Get spawn rate and fall speed based on current wave
     getWaveSpawnRate() {
         // Each wave spawns faster
-        const waveMultiplier = 1 - (this.currentWave - 1) * 0.08; // 8% faster each wave
-        return Math.max(800, this.baseSpawnRate * waveMultiplier * (1 / this.adaptiveMultiplier));
+        // Waves 1-6: 8% faster each wave
+        // Waves 7+: 12% faster each wave (steeper difficulty curve)
+        let waveMultiplier;
+        if (this.currentWave <= 6) {
+            waveMultiplier = 1 - (this.currentWave - 1) * 0.08; // 8% faster each wave
+        } else {
+            // Base from wave 6, then 12% faster per wave after that
+            const wave6Multiplier = 1 - 5 * 0.08; // 0.60
+            const wavesAfter6 = this.currentWave - 6;
+            waveMultiplier = wave6Multiplier - wavesAfter6 * 0.12; // 12% faster per wave
+        }
+        return Math.max(600, this.baseSpawnRate * Math.max(0.25, waveMultiplier) * (1 / this.adaptiveMultiplier));
     }
     
     getWaveFallSpeed() {
         // Each wave asteroids fall faster
-        const waveMultiplier = 1 + (this.currentWave - 1) * 0.1; // 10% faster each wave
+        // Waves 1-6: 10% faster each wave
+        // Waves 7+: 15% faster each wave (steeper difficulty curve)
+        let waveMultiplier;
+        if (this.currentWave <= 6) {
+            waveMultiplier = 1 + (this.currentWave - 1) * 0.1; // 10% faster each wave
+        } else {
+            // Base from wave 6, then 15% faster per wave after that
+            const wave6Multiplier = 1 + 5 * 0.1; // 1.50
+            const wavesAfter6 = this.currentWave - 6;
+            waveMultiplier = wave6Multiplier + wavesAfter6 * 0.15; // 15% faster per wave
+        }
         return this.baseFallSpeed * waveMultiplier * this.adaptiveMultiplier;
     }
     

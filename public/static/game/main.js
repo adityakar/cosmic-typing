@@ -111,7 +111,13 @@ class CosmicTyper {
             if (this.state === 'playing') {
                 this.pauseGame();
             } else if (this.state === 'paused') {
-                this.resumeGame();
+                // If showing exit/restart confirm, go back to pause menu
+                // Otherwise resume the game
+                if (this.ui.showingExitConfirm) {
+                    this.ui.showPauseMenu();
+                } else {
+                    this.resumeGame();
+                }
             }
             return;
         }

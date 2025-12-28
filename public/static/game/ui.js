@@ -626,18 +626,20 @@ class GameUI {
         const tips = {
             'Asteroid Defense': [
                 'Type the letter on each asteroid to destroy it!',
-                'Complete waves to earn stars!',
+                'Complete waves to earn stars (3/6/10 waves)!',
                 'Build combos for power-ups!',
-                'Keep a combo to heal Earth!'
+                'Keep a combo to heal Earth!',
+                'Press ESC to pause the game'
             ],
             'Rocket Launch': [
                 'Type letters to add fuel to your rocket!',
                 'Keep typing to maintain speed and altitude!',
                 'If you run out of fuel, you\'ll start falling!',
-                'Build combos to charge your BOOST meter!'
+                'Build combos to charge your BOOST meter!',
+                'Press ESC to pause the game'
             ]
         };
-        return tips[levelName] || ['Type the letters as fast as you can!'];
+        return tips[levelName] || ['Type the letters as fast as you can!', 'Press ESC to pause the game'];
     }
     
     // Show countdown - keeps instructions visible during countdown
@@ -681,14 +683,18 @@ class GameUI {
     // Show pause menu
     showPauseMenu() {
         this.currentScreen = 'paused';
+        this.showingExitConfirm = false;
         
         this.overlay.innerHTML = `
             <div class="pause-overlay">
-                <h2>PAUSED</h2>
-                <div class="pause-menu">
-                    <button class="cosmic-btn primary" id="resume-btn">▶ RESUME</button>
-                    <button class="cosmic-btn secondary" id="restart-btn">↺ RESTART</button>
-                    <button class="cosmic-btn secondary" id="quit-btn">✕ QUIT</button>
+                <div class="pause-content">
+                    <h2>⏸️ PAUSED</h2>
+                    <p class="pause-hint">Press ESC to resume</p>
+                    <div class="pause-menu">
+                        <button class="cosmic-btn primary" id="resume-btn">▶️ RESUME</button>
+                        <button class="cosmic-btn secondary" id="restart-btn">🔄 RESTART</button>
+                        <button class="cosmic-btn danger" id="quit-btn">🚪 EXIT TO MENU</button>
+                    </div>
                 </div>
             </div>
         `;
@@ -700,12 +706,68 @@ class GameUI {
         
         document.getElementById('restart-btn').addEventListener('click', () => {
             AudioManager.playClick();
-            this.game.restartLevel();
+            this.showRestartConfirm();
         });
         
         document.getElementById('quit-btn').addEventListener('click', () => {
             AudioManager.playClick();
+            this.showExitConfirm();
+        });
+    }
+    
+    // Show restart confirmation
+    showRestartConfirm() {
+        this.overlay.innerHTML = `
+            <div class="pause-overlay">
+                <div class="pause-content">
+                    <h2>🔄 RESTART?</h2>
+                    <p class="confirm-text">Your current progress will be lost.</p>
+                    <div class="pause-menu">
+                        <button class="cosmic-btn primary" id="confirm-restart-btn">YES, RESTART</button>
+                        <button class="cosmic-btn secondary" id="cancel-restart-btn">NO, GO BACK</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('confirm-restart-btn').addEventListener('click', () => {
+            AudioManager.playClick();
+            this.game.restartLevel();
+        });
+        
+        document.getElementById('cancel-restart-btn').addEventListener('click', () => {
+            AudioManager.playClick();
+            this.showPauseMenu();
+        });
+    }
+    
+    // Show exit confirmation
+    showExitConfirm() {
+        this.showingExitConfirm = true;
+        
+        this.overlay.innerHTML = `
+            <div class="pause-overlay">
+                <div class="pause-content">
+                    <h2>🚪 EXIT TO MENU?</h2>
+                    <p class="confirm-text">Your current progress will be lost.</p>
+                    <div class="pause-menu">
+                        <button class="cosmic-btn danger" id="confirm-exit-btn">YES, EXIT</button>
+                        <button class="cosmic-btn secondary" id="cancel-exit-btn">NO, GO BACK</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('confirm-exit-btn').addEventListener('click', () => {
+            AudioManager.playClick();
+            this.showingExitConfirm = false;
             this.game.quitToMenu();
+        });
+        
+        document.getElementById('cancel-exit-btn').addEventListener('click', () => {
+            AudioManager.playClick();
+            this.showingExitConfirm = false;
+            this.showPauseMenu();
         });
     }
     
@@ -1022,6 +1084,15 @@ class GameUI {
             ctx.fillText('COMBO', ctx.canvas.width - padding, 25);
             ctx.restore();
         }
+        
+        // ESC hint (subtle, bottom right corner)
+        ctx.save();
+        ctx.globalAlpha = 0.4;
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '12px "Exo 2", sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText('ESC to pause', ctx.canvas.width - padding, ctx.canvas.height - 15);
+        ctx.restore();
     }
 }
 
