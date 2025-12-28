@@ -130,6 +130,9 @@ class CosmicTyper {
             } else if (key === ' ') {
                 // Pass spacebar to level for power-up activation
                 this.currentLevel.handleKeyPress(key);
+            } else if (key === 'Shift') {
+                // Pass Shift to level for weapon toggle
+                this.currentLevel.handleKeyPress(key);
             }
         }
     }
