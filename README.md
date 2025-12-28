@@ -17,21 +17,41 @@ A fun, engaging typing game designed for 7-year-old beginner typists with a beau
 - Type the matching letter to aim and fire the laser cannon
 - Beautiful particle explosions with screen shake effects
 - Protect Earth's shield health bar
-- **NEW**: Word-based typing mode - type real words, not just random letters!
-- **NEW**: Power-up system unlocked by combos:
+- **Wave-based system**: Clear waves of asteroids (3 waves = 1 star, 6 waves = 2 stars, 10 waves = 3 stars)
+- **Word-based typing mode**: Type real words, not just random letters!
+- **Power-up system** unlocked by combos:
   - 🚀 **Mega Missile** (10 combo): AoE blast that destroys multiple asteroids
   - ⚡ **Hyper Laser** (15 combo): 3 instant-hit shots with no travel time
-  - 🛡️ **Force Shield** (20 combo): Temporary invulnerability for Earth
+  - 💥 **Orbital Strike** (spacebar): Screen-clearing ultimate ability
+- **Earth Shield regeneration**: Regenerates 2 HP/sec when maintaining combo
 
 #### Level 2: Rocket Launch 🚀
 - Type letters to add fuel and launch your rocket to the moon
 - Engine flames and particle effects for each correct keystroke
 - Race against time through atmosphere to space
-- **NEW**: Realistic gravity physics:
+- **Realistic gravity physics**:
   - When fuel runs out, velocity decreases
   - When velocity hits zero, gravity pulls the rocket down
   - Must keep typing to avoid crashing back to Earth!
+- **Warning alarm** loops when fuel is empty
 - Boost meter fills with combos for speed bursts
+
+### 🔊 Enhanced Audio System
+
+**Background Music**:
+- Space-themed uplifting instrumental (Opus format for efficiency)
+- Plays during menus and settings
+- Fades during gameplay for focus
+
+**Sound Effects** (Web Audio API for low latency):
+- `hyper_laser.wav` - Laser cannon shots
+- `mega_missile.wav` - Missile launch
+- `orbital_blast.wav` - Orbital strike activation
+- `explosion_1.wav`, `explosion_2.wav` - Randomized explosions
+- `rocket_boost.wav` - Rocket fuel boost
+- `rocket_exploding.wav` - Crash effects
+- `warning_alarm.wav` - Low fuel warning loop
+- `welcome.m4a` - Welcome voice on first signup
 
 ### 🧒 Child-Friendly Features
 
@@ -49,18 +69,20 @@ A fun, engaging typing game designed for 7-year-old beginner typists with a beau
   - Tips displayed during 3-2-1-GO countdown
   - Level-specific guidance for each game
 
-### 📊 Adaptive Learning
+### 📊 Adaptive Difficulty
 
+- **Weighted scoring**: Speed 55%, Accuracy 25%, WPM 20%
+- Generous target times: 6s beginner, 5s easy, 4s medium, 3s hard
+- Lower WPM targets: 8/12/20/35 for age-appropriate expectations
 - Tracks letters the player struggles with
 - Shows weak letters more frequently
-- Difficulty adjusts based on accuracy:
-  - High accuracy → faster asteroids, shorter spawn intervals
-  - Low accuracy → slower pace, more time to react
+- **Slow-but-accurate protection**: Won't punish accurate players
 
 ### 🏆 Progression System
 
 - Player profile saved to localStorage
-- Star ratings (1-3) based on performance
+- **Angry Birds-style result screen**: Stats count up one by one, stars reveal sequentially
+- Star ratings (1-3) based on waves completed
 - Achievements for combos (10, 25, 50 streak)
 - Level unlocking as skills improve
 
@@ -74,21 +96,13 @@ A fun, engaging typing game designed for 7-year-old beginner typists with a beau
 - Glowing projectiles with trails
 - Combo counter with visual feedback
 
-### 🔊 Sound Effects
-
-- Laser pew-pew sounds
-- Explosion effects (small, medium, large)
-- Combo ding with increasing pitch
-- Wrong key buzzer
-- Power-up activation sounds
-- Level complete fanfare
-
 ## Technical Stack
 
 - **Frontend**: Vanilla JavaScript with HTML5 Canvas
 - **Styling**: Custom CSS with space theme variables
 - **Backend**: Hono framework (lightweight)
-- **Deployment**: Cloudflare Pages
+- **Audio**: Web Audio API (SFX) + HTML5 Audio (music/voice)
+- **Deployment**: Cloudflare Pages (primary) / AWS S3 + CloudFront (alternative)
 - **Storage**: localStorage for player data
 
 ## File Structure
@@ -96,34 +110,35 @@ A fun, engaging typing game designed for 7-year-old beginner typists with a beau
 ```
 webapp/
 ├── src/
-│   └── index.tsx          # Main Hono app entry point
+│   └── index.tsx              # Main Hono app entry point
 ├── public/static/
-│   ├── style.css          # Main stylesheet
+│   ├── style.css              # Main stylesheet
+│   ├── audio/                 # Audio assets
+│   │   ├── background_music.opus
+│   │   ├── welcome.m4a
+│   │   ├── hyper_laser.wav
+│   │   ├── mega_missile.wav
+│   │   ├── orbital_blast.wav
+│   │   ├── explosion_1.wav
+│   │   ├── explosion_2.wav
+│   │   ├── rocket_boost.wav
+│   │   ├── rocket_exploding.wav
+│   │   └── warning_alarm.wav
 │   └── game/
-│       ├── utils.js       # Utility functions
-│       ├── audio.js       # Sound effects (Web Audio API)
-│       ├── particles.js   # Particle system
-│       ├── player.js      # Player profile & persistence
-│       ├── words.js       # Word dictionary for kids
-│       ├── ui.js          # UI screens and menus
-│       ├── main.js        # Game controller
+│       ├── utils.js           # Utility functions
+│       ├── audio.js           # Sound effects (Web Audio API + HTML5 Audio)
+│       ├── particles.js       # Particle system
+│       ├── player.js          # Player profile & persistence
+│       ├── words.js           # Word dictionary for kids
+│       ├── ui.js              # UI screens and menus
+│       ├── main.js            # Game controller
 │       └── levels/
 │           ├── asteroid-defense.js
 │           └── rocket-launch.js
-├── ecosystem.config.cjs   # PM2 configuration
-├── wrangler.jsonc         # Cloudflare config
+├── ecosystem.config.cjs       # PM2 configuration
+├── wrangler.jsonc             # Cloudflare config
 └── package.json
 ```
-
-## Recent Updates (v2.0)
-
-1. **Improved Font Readability**: Changed asteroid letters from Orbitron to Arial Black/Impact
-2. **Letters Stay Upright**: Asteroids rotate but letters remain readable
-3. **Extended Instructions**: 3 seconds of tips before countdown starts
-4. **Word Dictionary System**: Real words instead of random letters
-5. **Power-Up System**: Missile AoE, Hyper Laser, Force Shield
-6. **Gravity Physics**: Rocket falls when fuel runs out in Level 2
-7. **Visual Enhancements**: Shield effects, falling warnings, velocity indicators
 
 ## Local Development
 
@@ -134,18 +149,112 @@ npm install
 # Build the project
 npm run build
 
-# Run with wrangler
+# Run with wrangler (Cloudflare Pages dev)
 npm run preview
 
 # Or use PM2 for development
 pm2 start ecosystem.config.cjs
+
+# Test locally
+curl http://localhost:3000
 ```
 
 ## Deployment
 
+### Option 1: Cloudflare Pages (Primary)
+
 ```bash
-# Deploy to Cloudflare Pages
+# Build and deploy to Cloudflare Pages
 npm run deploy
+
+# Or step by step:
+npm run build
+npx wrangler pages deploy dist --project-name cosmic-typer
+```
+
+### Option 2: AWS S3 + CloudFront
+
+For deploying to AWS S3 with CloudFront CDN:
+
+#### Prerequisites
+1. AWS CLI installed and configured (`aws configure`)
+2. An S3 bucket created with static website hosting enabled
+3. A CloudFront distribution pointing to the S3 bucket
+
+#### Build for AWS
+```bash
+# Build static files for AWS deployment
+npm run build:aws
+
+# This creates a dist-aws/ folder with:
+# - All static assets from public/static/
+# - index.html as the entry point
+```
+
+#### Deploy to S3
+```bash
+# Sync to S3 bucket (replace YOUR_BUCKET_NAME)
+aws s3 sync dist-aws/ s3://YOUR_BUCKET_NAME --delete
+
+# Set cache headers for assets
+aws s3 cp s3://YOUR_BUCKET_NAME s3://YOUR_BUCKET_NAME \
+  --recursive \
+  --exclude "*" \
+  --include "*.js" --include "*.css" --include "*.wav" --include "*.opus" --include "*.m4a" \
+  --metadata-directive REPLACE \
+  --cache-control "max-age=31536000"
+
+# Set shorter cache for HTML
+aws s3 cp s3://YOUR_BUCKET_NAME/index.html s3://YOUR_BUCKET_NAME/index.html \
+  --metadata-directive REPLACE \
+  --cache-control "max-age=300" \
+  --content-type "text/html"
+```
+
+#### Invalidate CloudFront Cache
+```bash
+# Invalidate CloudFront cache (replace YOUR_DISTRIBUTION_ID)
+aws cloudfront create-invalidation \
+  --distribution-id YOUR_DISTRIBUTION_ID \
+  --paths "/*"
+```
+
+#### S3 Bucket Policy
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "PublicReadGetObject",
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::YOUR_BUCKET_NAME/*"
+    }
+  ]
+}
+```
+
+#### CloudFront Configuration Tips
+- **Origin**: Point to S3 website endpoint (not REST endpoint)
+- **Default Root Object**: `index.html`
+- **Error Pages**: Configure 404 to return `/index.html` with 200 status (for SPA routing)
+- **Compress Objects**: Enable automatic compression
+- **HTTPS**: Use CloudFront's default certificate or custom domain
+
+## NPM Scripts Reference
+
+```json
+{
+  "dev": "vite",
+  "dev:sandbox": "wrangler pages dev dist --ip 0.0.0.0 --port 3000",
+  "build": "vite build",
+  "build:aws": "npm run build && node scripts/build-aws.js",
+  "preview": "wrangler pages dev dist",
+  "deploy": "npm run build && wrangler pages deploy dist",
+  "deploy:prod": "npm run build && wrangler pages deploy dist --project-name cosmic-typer",
+  "deploy:aws": "npm run build:aws && aws s3 sync dist-aws/ s3://YOUR_BUCKET_NAME --delete"
+}
 ```
 
 ## For Parents

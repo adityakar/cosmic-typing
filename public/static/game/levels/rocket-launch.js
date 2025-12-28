@@ -85,6 +85,8 @@ class RocketLaunchLevel {
         // Danger indicators
         this.warningFlash = 0;
         this.criticalAltitude = false;
+        this.warningAlarmActive = false;  // Track warning alarm state
+        this.lastBoostSoundTime = 0;  // Throttle boost sounds
     }
     
     getLetterTimeout() {
@@ -231,10 +233,18 @@ class RocketLaunchLevel {
     
     pause() {
         this.state = 'paused';
+        // Pause warning alarm if active
+        if (this.warningAlarmActive) {
+            AudioManager.stopWarningAlarm();
+        }
     }
     
     resume() {
         this.state = 'playing';
+        // Resume warning alarm if fuel is empty
+        if (this.warningAlarmActive && this.rocket.fuel <= 0) {
+            AudioManager.startWarningAlarm();
+        }
     }
     
     handleKeyPress(key) {
@@ -275,6 +285,19 @@ class RocketLaunchLevel {
             AudioManager.playCombo(this.combo);
         } else {
             AudioManager.playCorrect();
+        }
+        
+        // Play rocket boost sound (throttled to avoid spam)
+        const now = Date.now();
+        if (now - this.lastBoostSoundTime > 300) {  // Max once per 300ms
+            AudioManager.playRocketBoost();
+            this.lastBoostSoundTime = now;
+        }
+        
+        // Stop warning alarm if fuel recovered
+        if (this.warningAlarmActive && this.rocket.fuel > 15) {
+            AudioManager.stopWarningAlarm();
+            this.warningAlarmActive = false;
         }
         
         // Rocket boost effect
@@ -426,6 +449,12 @@ class RocketLaunchLevel {
             }
         } else {
             // NO FUEL - Apply gravity and decelerate
+            // Start warning alarm when fuel is empty
+            if (!this.warningAlarmActive) {
+                AudioManager.startWarningAlarm();
+                this.warningAlarmActive = true;
+            }
+            
             // First, velocity decreases (rocket slows down)
             if (this.rocket.velocity > 0) {
                 // Still going up but slowing down
@@ -586,6 +615,10 @@ class RocketLaunchLevel {
             if (progress >= 0.75) stars = 1;
         }
         
+        // Stop warning alarm
+        AudioManager.stopWarningAlarm();
+        this.warningAlarmActive = false;
+        
         // Effects
         if (victory) {
             AudioManager.playLevelComplete();
@@ -604,6 +637,9 @@ class RocketLaunchLevel {
             
             // Crash effects if fell
             if (this.rocket.isFalling) {
+                // Play rocket exploding sound
+                AudioManager.playRocketExploding();
+                
                 this.particles.explosion(this.rocket.x, this.rocket.y, {
                     count: 60,
                     colors: ['#ff4444', '#ff8844', '#ffcc00'],

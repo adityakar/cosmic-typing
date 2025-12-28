@@ -36,6 +36,10 @@ class AudioManagerClass {
         this.soundBuffers = {};
         this.soundsLoaded = false;
         
+        // Warning alarm state (for looping)
+        this.warningAlarm = null;
+        this.warningAlarmPlaying = false;
+        
         // Audio file paths
         this.audioFiles = {
             // Sound effects (will be decoded into buffers)
@@ -44,8 +48,12 @@ class AudioManagerClass {
             orbitalBlast: '/static/audio/orbital_blast.wav',
             explosion1: '/static/audio/explosion_1.wav',
             explosion2: '/static/audio/explosion_2.wav',
+            rocketBoost: '/static/audio/rocket_boost.wav',
+            rocketExploding: '/static/audio/rocket_exploding.wav',
+            warningAlarm: '/static/audio/warning_alarm.wav',
             // Music/voice (HTML5 Audio - streamed)
-            backgroundMusic: '/static/audio/background_music.m4a',
+            // Using opus format for better compression and wide browser support
+            backgroundMusic: '/static/audio/background_music.opus',
             welcome: '/static/audio/welcome.m4a'
         };
     }
@@ -123,7 +131,10 @@ class AudioManagerClass {
             megaMissile: this.audioFiles.megaMissile,
             orbitalBlast: this.audioFiles.orbitalBlast,
             explosion1: this.audioFiles.explosion1,
-            explosion2: this.audioFiles.explosion2
+            explosion2: this.audioFiles.explosion2,
+            rocketBoost: this.audioFiles.rocketBoost,
+            rocketExploding: this.audioFiles.rocketExploding,
+            warningAlarm: this.audioFiles.warningAlarm
         };
         
         const loadPromises = Object.entries(effectFiles).map(async ([name, url]) => {
@@ -573,11 +584,58 @@ class AudioManagerClass {
         this.playTone(400, 0.03, 'sine', 0.1);
     }
     
-    // Rocket boost sound
+    // Rocket boost sound - uses loaded audio file
     playRocketBoost() {
-        if (!this.enabled || !this.ctx) return;
-        this.playNoise(0.2, 0.15);
-        this.playTone(150, 0.2, 'sawtooth', 0.1);
+        if (!this.enabled || !this.sfxEnabled) return;
+        
+        if (this.soundsLoaded && this.soundBuffers.rocketBoost) {
+            this.playBuffer('rocketBoost', 0.7);
+        } else {
+            // Fallback to synthesized version
+            if (!this.ctx) return;
+            this.playNoise(0.2, 0.15);
+            this.playTone(150, 0.2, 'sawtooth', 0.1);
+        }
+    }
+    
+    // Rocket exploding sound - uses loaded audio file
+    playRocketExploding() {
+        if (!this.enabled || !this.sfxEnabled) return;
+        
+        if (this.soundsLoaded && this.soundBuffers.rocketExploding) {
+            this.playBuffer('rocketExploding', 0.9);
+        } else {
+            // Fallback to large explosion
+            this.playExplosion('large');
+        }
+    }
+    
+    // Start warning alarm loop (for low fuel, etc.)
+    startWarningAlarm() {
+        if (!this.enabled || !this.sfxEnabled || this.warningAlarmPlaying) return;
+        
+        this.warningAlarmPlaying = true;
+        
+        // Use HTML5 Audio for looping alarm
+        if (!this.warningAlarm) {
+            this.warningAlarm = new Audio(this.audioFiles.warningAlarm);
+            this.warningAlarm.loop = true;
+            this.warningAlarm.volume = this.sfxVolume * this.masterVolume * 0.6;
+        }
+        
+        this.warningAlarm.play().catch(e => {
+            console.warn('Warning alarm playback failed:', e);
+        });
+    }
+    
+    // Stop warning alarm loop
+    stopWarningAlarm() {
+        this.warningAlarmPlaying = false;
+        
+        if (this.warningAlarm) {
+            this.warningAlarm.pause();
+            this.warningAlarm.currentTime = 0;
+        }
     }
     
     // Star collect sound
