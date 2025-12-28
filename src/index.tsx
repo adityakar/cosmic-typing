@@ -22,6 +22,10 @@ app.get('/', (c) => {
         <canvas id="background-canvas"></canvas>
         <canvas id="game-canvas"></canvas>
         <div id="ui-overlay"></div>
+        <!-- Krishvik Logo - hidden during gameplay -->
+        <a href="https://krishvik.com" target="_blank" rel="noopener noreferrer" id="krishvik-logo" title="Visit Krishvik.com">
+            <img src="/static/images/krishvik-logo.png" alt="Krishvik.com">
+        </a>
     </div>
     
     <script src="/static/game/utils.js"></script>

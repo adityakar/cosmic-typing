@@ -627,8 +627,9 @@ class GameUI {
             'Asteroid Defense': [
                 'Type the letter on each asteroid to destroy it!',
                 'Complete waves to earn stars (3/6/10 waves)!',
-                'Build combos for power-ups!',
-                'Keep a combo to heal Earth!',
+                'Build combos for power-ups: Mega Missile & Hyper Laser!',
+                'Mega Missile destroys multiple asteroids at once!',
+                'Press SHIFT to switch weapons when both are active!',
                 'Press ESC to pause the game'
             ],
             'Rocket Launch': [
@@ -644,7 +645,7 @@ class GameUI {
     
     // Show countdown - keeps instructions visible during countdown
     showCountdown(callback) {
-        let count = 3;
+        let count = 5;  // 5-second countdown for more reading time
         const countdownContainer = document.getElementById('countdown-container');
         const levelTips = document.getElementById('level-tips');
         

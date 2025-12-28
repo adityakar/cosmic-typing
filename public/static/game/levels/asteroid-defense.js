@@ -140,6 +140,10 @@ class AsteroidDefenseLevel {
         };
         this.activePowerUp = null;
         this.powerUpIndicators = [];
+        
+        // Weapon toggle: 'auto', 'missile', or 'laser'
+        // 'auto' = current behavior (laser priority), can toggle when both available
+        this.preferredWeapon = 'auto';
     }
     
     getSpawnRate() {
@@ -379,6 +383,12 @@ class AsteroidDefenseLevel {
             return;
         }
         
+        // === SHIFT: Toggle weapon preference (Mega Missile <-> Hyper Laser) ===
+        if (key === 'Shift') {
+            this.toggleWeaponPreference();
+            return;
+        }
+        
         const pressedLetter = pressedKey;
         
         // Find asteroid with matching letter (closest to bottom)
@@ -401,6 +411,44 @@ class AsteroidDefenseLevel {
         } else {
             this.recordMiss(pressedLetter);
         }
+    }
+    
+    // === WEAPON TOGGLE (SHIFT KEY) ===
+    toggleWeaponPreference() {
+        const missile = this.powerUps.missile;
+        const laser = this.powerUps.laser;
+        
+        // Only allow toggle when both weapons are available
+        const missileReady = missile.ready && this.combo >= missile.comboRequired;
+        const laserReady = laser.active && laser.shotsRemaining > 0;
+        
+        if (missileReady && laserReady) {
+            // Toggle between missile and laser
+            if (this.preferredWeapon === 'missile') {
+                this.preferredWeapon = 'laser';
+                this.showWeaponIndicator('⚡ HYPER LASER');
+                AudioManager.playClick();
+            } else {
+                this.preferredWeapon = 'missile';
+                this.showWeaponIndicator('🚀 MEGA MISSILE');
+                AudioManager.playClick();
+            }
+        } else if (missileReady || laserReady) {
+            // Only one weapon available - show hint
+            const weaponName = laserReady ? 'Hyper Laser' : 'Mega Missile';
+            this.showWeaponIndicator(`Only ${weaponName} available`);
+        }
+    }
+    
+    showWeaponIndicator(text) {
+        this.powerUpIndicators.push({
+            text: text,
+            x: this.canvas.width / 2,
+            y: this.canvas.height / 2 + 80,
+            alpha: 1,
+            scale: 1.5,
+            life: 1.5
+        });
     }
     
     // === ORBITAL STRIKE ACTIVATION (SPACEBAR) ===
@@ -504,9 +552,22 @@ class AsteroidDefenseLevel {
         
         this.aimCannon(asteroid);
         
-        if (this.powerUps.laser.active && this.powerUps.laser.shotsRemaining > 0) {
+        // Check weapon availability
+        const laserReady = this.powerUps.laser.active && this.powerUps.laser.shotsRemaining > 0;
+        const missileReady = this.powerUps.missile.ready && this.combo >= this.powerUps.missile.comboRequired;
+        
+        // Weapon selection based on preference (toggle via Shift)
+        if (laserReady && missileReady) {
+            // Both available - use preferred weapon
+            if (this.preferredWeapon === 'missile') {
+                this.fireMissile(asteroid);
+            } else {
+                // Default to laser if 'auto' or 'laser'
+                this.fireHyperLaser(asteroid);
+            }
+        } else if (laserReady) {
             this.fireHyperLaser(asteroid);
-        } else if (this.powerUps.missile.ready && this.combo >= this.powerUps.missile.comboRequired) {
+        } else if (missileReady) {
             this.fireMissile(asteroid);
         } else {
             this.fireProjectile(asteroid);

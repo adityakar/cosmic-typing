@@ -170,9 +170,23 @@ class CosmicTyper {
                 this.state = 'playing';
                 // Fade out background music during gameplay
                 AudioManager.fadeMusicVolume(0.1, 1000);
+                // Hide logo during gameplay
+                this.setLogoVisible(false);
                 this.currentLevel.start();
             }
         );
+    }
+    
+    // Show/hide Krishvik logo
+    setLogoVisible(visible) {
+        const logo = document.getElementById('krishvik-logo');
+        if (logo) {
+            if (visible) {
+                logo.classList.remove('hidden');
+            } else {
+                logo.classList.add('hidden');
+            }
+        }
     }
     
     pauseGame() {
@@ -212,11 +226,16 @@ class CosmicTyper {
         // Fade background music back to normal volume
         AudioManager.fadeMusicVolume(AudioManager.musicVolume * AudioManager.masterVolume, 500);
         
+        // Show logo in menu
+        this.setLogoVisible(true);
+        
         this.ui.showMainMenu();
     }
     
     // Show result screen (called by levels)
     showResultScreen(results) {
+        // Show logo on result screen
+        this.setLogoVisible(true);
         this.state = 'menu';
         
         // Fade background music back to normal for result screen

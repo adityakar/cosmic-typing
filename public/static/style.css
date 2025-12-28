@@ -1615,3 +1615,125 @@ html, body {
 .result-buttons .cosmic-btn {
     min-width: 140px;
 }
+
+/* ============================================
+   KRISHVIK LOGO
+   ============================================ */
+
+#krishvik-logo {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    z-index: 100;
+    opacity: 0.9;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+#krishvik-logo:hover {
+    opacity: 1;
+    transform: scale(1.05);
+}
+
+#krishvik-logo img {
+    height: 50px;
+    width: auto;
+    display: block;
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
+}
+
+/* Hide logo during gameplay */
+#krishvik-logo.hidden {
+    display: none;
+}
+
+/* ============================================
+   LARGE SCREEN ENHANCEMENTS
+   ============================================ */
+
+@media (min-width: 1400px) {
+    /* Larger mission cards on big screens */
+    .levels-grid {
+        gap: 35px;
+        max-width: 1100px;
+    }
+    
+    .level-card {
+        padding: 35px;
+    }
+    
+    .level-icon {
+        font-size: 4rem;
+        margin-bottom: 20px;
+    }
+    
+    .level-card h3 {
+        font-size: 1.6rem;
+        margin-bottom: 15px;
+    }
+    
+    .level-card p {
+        font-size: 1.05rem;
+        line-height: 1.6;
+    }
+    
+    .level-select h2 {
+        font-size: 2.8rem;
+    }
+    
+    .difficulty-star {
+        font-size: 1.2rem;
+    }
+    
+    /* Larger logo on big screens */
+    #krishvik-logo img {
+        height: 65px;
+    }
+}
+
+@media (min-width: 1800px) {
+    /* Even larger on very big screens */
+    .levels-grid {
+        gap: 45px;
+        max-width: 1300px;
+    }
+    
+    .level-card {
+        padding: 45px;
+    }
+    
+    .level-icon {
+        font-size: 5rem;
+        margin-bottom: 25px;
+    }
+    
+    .level-card h3 {
+        font-size: 1.9rem;
+        margin-bottom: 18px;
+    }
+    
+    .level-card p {
+        font-size: 1.15rem;
+        line-height: 1.7;
+    }
+    
+    .level-select h2 {
+        font-size: 3.2rem;
+    }
+    
+    /* Larger logo on very big screens */
+    #krishvik-logo img {
+        height: 80px;
+    }
+}
+
+/* Smaller logo on small screens */
+@media (max-width: 768px) {
+    #krishvik-logo img {
+        height: 40px;
+    }
+    
+    #krishvik-logo {
+        top: 10px;
+        left: 10px;
+    }
+}

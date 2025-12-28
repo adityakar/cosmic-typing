@@ -413,11 +413,10 @@ class RocketLaunchLevel {
         
         this.timeElapsed += dt;
         
-        // Check time limit
-        if (this.timeElapsed >= this.levelDuration) {
-            this.gameOver(false);
-            return;
-        }
+        // No time limit - the challenge is the physics (gravity and fuel)
+        // The game ends when: 
+        // 1. Victory: Reached the moon (altitude >= targetAltitude)
+        // 2. Defeat: Crashed (falling rocket hits ground)
         
         // Check letter timeout
         if (currentTime - this.letterTimer > this.letterTimeout) {
