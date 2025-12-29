@@ -34,37 +34,20 @@ class GameUI {
         this.overlay.innerHTML = `
             <div class="mobile-warning-overlay">
                 <div class="mobile-warning-modal">
-                    <div class="warning-icon-large">
-                        <span class="no-touch">🚫📱</span>
-                    </div>
-                    <h2>⚠️ Keyboard Required! ⚠️</h2>
+                    <div class="warning-icon">⌨️</div>
+                    <h2>Keyboard Required</h2>
+                    <p>Cosmic Typer is a typing game that requires a physical keyboard.</p>
                     
-                    <div class="device-comparison">
-                        <div class="device-option wrong">
-                            <div class="device-icon">📱</div>
-                            <div class="device-status">❌</div>
-                            <p>Phone/Tablet Touch</p>
-                        </div>
-                        <div class="device-option correct">
-                            <div class="device-icon">💻⌨️</div>
-                            <div class="device-status">✅</div>
-                            <p>Computer + Keyboard</p>
-                        </div>
+                    <div class="device-hint">
+                        <span class="device-wrong">📱 ✗</span>
+                        <span class="device-right">💻 ✓</span>
                     </div>
                     
-                    <div class="warning-message">
-                        <p><strong>This is a TYPING game!</strong></p>
-                        <p>You need a physical keyboard to play.</p>
-                    </div>
-                    
-                    <div class="warning-action">
-                        <p class="action-text">👉 Open this on a computer with a keyboard! 👈</p>
-                        <p class="site-url">typing.krishvik.com</p>
-                    </div>
+                    <p class="site-url-hint">Visit on a computer:<br><strong>typing.krishvik.com</strong></p>
                     
                     <div class="warning-buttons">
-                        <button class="cosmic-btn secondary small" id="continue-anyway-btn">
-                            I have a keyboard connected - Continue
+                        <button class="cosmic-btn primary" id="continue-anyway-btn">
+                            I have a keyboard - Continue
                         </button>
                     </div>
                 </div>

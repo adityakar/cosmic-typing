@@ -824,11 +824,14 @@ html, body {
 
 .assessment-container {
     text-align: center;
-    max-width: 500px;
-    padding: 40px;
+    max-width: 480px;
+    padding: 25px 30px;
     background: var(--panel-bg);
     border: 2px solid var(--panel-border);
     border-radius: 20px;
+    max-height: 90vh;
+    overflow-y: auto;
+    margin: 10px;
 }
 
 .assessment-container h2 {
@@ -846,23 +849,23 @@ html, body {
 
 /* Keyboard hint animation for skill assessment */
 .keyboard-hint {
-    background: linear-gradient(135deg, rgba(0, 255, 136, 0.15), rgba(0, 255, 255, 0.15));
+    background: linear-gradient(135deg, rgba(0, 255, 136, 0.1), rgba(0, 255, 255, 0.1));
     border: 2px solid var(--laser-cyan);
-    border-radius: 15px;
-    padding: 20px;
-    margin: 20px auto;
-    max-width: 350px;
+    border-radius: 12px;
+    padding: 12px 15px;
+    margin: 12px auto;
+    max-width: 300px;
     animation: hintGlow 2s ease-in-out infinite;
 }
 
 @keyframes hintGlow {
-    0%, 100% { box-shadow: 0 0 15px rgba(0, 255, 255, 0.3); }
-    50% { box-shadow: 0 0 30px rgba(0, 255, 255, 0.6); }
+    0%, 100% { box-shadow: 0 0 10px rgba(0, 255, 255, 0.2); }
+    50% { box-shadow: 0 0 20px rgba(0, 255, 255, 0.4); }
 }
 
 .keyboard-icon-animated {
-    font-size: 3rem;
-    margin-bottom: 10px;
+    font-size: 2rem;
+    margin-bottom: 5px;
     position: relative;
     display: inline-block;
 }
@@ -874,27 +877,27 @@ html, body {
 
 .hand-emoji {
     position: absolute;
-    bottom: -5px;
-    right: -15px;
-    font-size: 2rem;
+    bottom: -3px;
+    right: -10px;
+    font-size: 1.3rem;
     animation: handPress 1s ease-in-out infinite;
 }
 
 @keyframes keyboardBounce {
     0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-5px); }
+    50% { transform: translateY(-3px); }
 }
 
 @keyframes handPress {
     0%, 100% { transform: translateY(0) scale(1); }
-    50% { transform: translateY(5px) scale(0.95); }
+    50% { transform: translateY(3px) scale(0.95); }
 }
 
 .hint-text {
     font-family: var(--font-display);
-    font-size: 1.2rem;
+    font-size: 0.95rem;
     color: var(--text-accent) !important;
-    margin-bottom: 5px !important;
+    margin-bottom: 2px !important;
 }
 
 .hint-subtext {
@@ -1498,167 +1501,61 @@ html, body {
 }
 
 .mobile-warning-modal .warning-icon {
-    font-size: 4rem;
-    margin-bottom: 15px;
+    font-size: 3.5rem;
+    margin-bottom: 10px;
     animation: pulse 2s ease-in-out infinite;
-}
-
-/* Large warning icon with no-touch animation */
-.warning-icon-large {
-    font-size: 4rem;
-    margin-bottom: 15px;
-}
-
-.warning-icon-large .no-touch {
-    display: inline-block;
-    animation: shake 0.5s ease-in-out infinite;
-}
-
-@keyframes shake {
-    0%, 100% { transform: translateX(0); }
-    25% { transform: translateX(-5px); }
-    75% { transform: translateX(5px); }
 }
 
 .mobile-warning-modal h2 {
     font-family: var(--font-display);
-    font-size: 1.5rem;
-    color: var(--danger-red);
-    margin-bottom: 20px;
-    animation: warningPulse 1s ease-in-out infinite;
+    font-size: 1.4rem;
+    color: var(--text-accent);
+    margin-bottom: 15px;
 }
 
-@keyframes warningPulse {
-    0%, 100% { color: var(--danger-red); }
-    50% { color: var(--text-accent); }
-}
-
-/* Device comparison boxes */
-.device-comparison {
+/* Simple device hint */
+.device-hint {
     display: flex;
     justify-content: center;
-    gap: 20px;
-    margin: 25px 0;
-}
-
-.device-option {
-    padding: 15px 20px;
-    border-radius: 15px;
-    min-width: 120px;
-}
-
-.device-option.wrong {
-    background: rgba(255, 68, 68, 0.2);
-    border: 2px solid var(--danger-red);
-}
-
-.device-option.correct {
-    background: rgba(68, 255, 136, 0.2);
-    border: 2px solid var(--success-green);
-    animation: correctGlow 1.5s ease-in-out infinite;
-}
-
-@keyframes correctGlow {
-    0%, 100% { box-shadow: 0 0 10px rgba(68, 255, 136, 0.3); }
-    50% { box-shadow: 0 0 25px rgba(68, 255, 136, 0.6); }
-}
-
-.device-icon {
-    font-size: 2.5rem;
-    margin-bottom: 5px;
-}
-
-.device-status {
-    font-size: 1.5rem;
-    margin-bottom: 5px;
-}
-
-.device-option p {
-    font-size: 0.85rem;
-    margin: 0;
-    color: var(--text-primary);
-}
-
-.warning-message {
-    background: rgba(255, 68, 68, 0.1);
-    border-left: 4px solid var(--danger-red);
-    padding: 15px;
+    gap: 30px;
     margin: 20px 0;
-    text-align: left;
+    font-size: 2rem;
 }
 
-.warning-message p {
-    margin: 5px 0;
-    font-size: 1rem;
+.device-wrong {
+    opacity: 0.5;
 }
 
-.warning-action {
-    background: linear-gradient(135deg, rgba(0, 255, 136, 0.1), rgba(0, 255, 255, 0.1));
-    border: 2px dashed var(--laser-cyan);
-    border-radius: 15px;
-    padding: 15px;
-    margin: 20px 0;
+.device-right {
+    color: var(--success-green);
 }
 
-.action-text {
+.site-url-hint {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    margin: 15px 0;
+    line-height: 1.6;
+}
+
+.site-url-hint strong {
+    color: var(--laser-cyan);
     font-family: var(--font-display);
     font-size: 1.1rem;
-    color: var(--text-accent) !important;
-    margin-bottom: 10px !important;
-}
-
-.site-url {
-    font-family: var(--font-display);
-    font-size: 1.3rem;
-    color: var(--laser-cyan) !important;
-    background: rgba(0, 0, 0, 0.3);
-    padding: 8px 15px;
-    border-radius: 8px;
-    display: inline-block;
-    margin: 0 !important;
 }
 
 .mobile-warning-modal p {
     color: var(--text-secondary);
-    font-size: 1rem;
-    margin-bottom: 15px;
+    font-size: 0.95rem;
+    margin-bottom: 10px;
     line-height: 1.5;
 }
 
-.mobile-warning-modal ul {
-    list-style: none;
-    text-align: left;
-    margin: 20px 0;
-    padding: 0;
-}
-
-.mobile-warning-modal li {
-    color: var(--text-primary);
-    font-size: 0.95rem;
-    padding: 8px 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.mobile-warning-modal li:last-child {
-    border-bottom: none;
-}
-
 .warning-buttons {
-    margin-top: 25px;
+    margin-top: 20px;
 }
 
 .warning-buttons .cosmic-btn {
     min-width: 140px;
-}
-
-.warning-buttons .cosmic-btn.small {
-    font-size: 0.85rem;
-    padding: 10px 15px;
-    opacity: 0.7;
-}
-
-.warning-buttons .cosmic-btn.small:hover {
-    opacity: 1;
 }
 
 @keyframes pulse {
