@@ -34,17 +34,37 @@ class GameUI {
         this.overlay.innerHTML = `
             <div class="mobile-warning-overlay">
                 <div class="mobile-warning-modal">
-                    <div class="warning-icon">⌨️</div>
-                    <h2>Physical Keyboard Recommended</h2>
-                    <p>Cosmic Typer is a typing game designed to be played with a physical keyboard.</p>
-                    <p>For the best experience:</p>
-                    <ul>
-                        <li>🖥️ Use a computer with a keyboard</li>
-                        <li>📱 Or connect a Bluetooth keyboard to your device</li>
-                    </ul>
+                    <div class="warning-icon-large">
+                        <span class="no-touch">🚫📱</span>
+                    </div>
+                    <h2>⚠️ Keyboard Required! ⚠️</h2>
+                    
+                    <div class="device-comparison">
+                        <div class="device-option wrong">
+                            <div class="device-icon">📱</div>
+                            <div class="device-status">❌</div>
+                            <p>Phone/Tablet Touch</p>
+                        </div>
+                        <div class="device-option correct">
+                            <div class="device-icon">💻⌨️</div>
+                            <div class="device-status">✅</div>
+                            <p>Computer + Keyboard</p>
+                        </div>
+                    </div>
+                    
+                    <div class="warning-message">
+                        <p><strong>This is a TYPING game!</strong></p>
+                        <p>You need a physical keyboard to play.</p>
+                    </div>
+                    
+                    <div class="warning-action">
+                        <p class="action-text">👉 Open this on a computer with a keyboard! 👈</p>
+                        <p class="site-url">typing.krishvik.com</p>
+                    </div>
+                    
                     <div class="warning-buttons">
-                        <button class="cosmic-btn primary" id="continue-anyway-btn">
-                            Continue Anyway
+                        <button class="cosmic-btn secondary small" id="continue-anyway-btn">
+                            I have a keyboard connected - Continue
                         </button>
                     </div>
                 </div>
@@ -169,7 +189,18 @@ class GameUI {
             <div class="skill-assessment">
                 <div class="assessment-container">
                     <h2>Quick Skill Check!</h2>
-                    <p>Type the letters below as quickly and accurately as you can. This helps us adjust the game to your skill level!</p>
+                    <p>This helps us adjust the game to your skill level!</p>
+                    
+                    <!-- Visual keyboard hint -->
+                    <div class="keyboard-hint">
+                        <div class="keyboard-icon-animated">
+                            <span class="keyboard-emoji">⌨️</span>
+                            <span class="hand-emoji">👆</span>
+                        </div>
+                        <p class="hint-text">Use your <strong>KEYBOARD</strong> to type the letters!</p>
+                        <p class="hint-subtext">Don't click - press the keys!</p>
+                    </div>
+                    
                     <div class="assessment-letters" id="assessment-letters">
                         ${lettersHtml}
                     </div>
@@ -178,7 +209,7 @@ class GameUI {
                             <div class="progress-fill" id="assessment-progress" style="width: 0%"></div>
                         </div>
                     </div>
-                    <p style="margin-top: 20px; opacity: 0.7;">Press any key to begin!</p>
+                    <p class="start-prompt" style="margin-top: 20px;">Press the highlighted letter to begin!</p>
                 </div>
             </div>
         `;
