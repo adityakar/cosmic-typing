@@ -1,6 +1,7 @@
 // ============================================
-// COSMIC TYPER - Level 2: Rocket Launch
-// Type letters to fuel your rocket and reach the moon!
+// COSMIC TYPER - Level 2: Cosmic Runner
+// Run through space, type letters to destroy obstacles!
+// Features: Weapon system with projectiles, Elite enemies with word typing
 // ============================================
 
 class RocketLaunchLevel {
@@ -9,13 +10,21 @@ class RocketLaunchLevel {
         this.canvas = game.gameCanvas;
         this.ctx = game.gameCtx;
         this.particles = game.particles;
-        
+
         // Level info
         this.id = 'rocket-launch';
-        this.name = 'Rocket Launch';
-        this.description = 'Type letters to fuel your rocket! Reach the moon before time runs out!';
-        this.icon = '🚀';
-        
+        this.name = 'Cosmic Runner';
+        this.description = 'Run through space! Type letters to destroy obstacles or press SPACE to jump!';
+        this.icon = '🤖';
+
+        // Get config
+        this.config = window.RocketRunnerConfig || {};
+
+        // Difficulty
+        this.difficulty = game.player.getDifficulty();
+        this.difficultyConfig = this.config.DIFFICULTY?.[this.difficulty] || this.config.DIFFICULTY?.easy || {};
+        this.letters = Utils.getLettersByDifficulty(this.difficulty);
+
         // Game state
         this.state = 'ready';
         this.score = 0;
@@ -24,87 +33,78 @@ class RocketLaunchLevel {
         this.correctCount = 0;
         this.wrongCount = 0;
         this.timeElapsed = 0;
-        this.levelDuration = 60;
-        
-        // Rocket state with improved physics
-        this.rocket = {
-            x: 0,
-            y: 0,
-            targetY: 0,
-            width: 60,
-            height: 120,
-            fuel: 0,
-            maxFuel: 100,
-            altitude: 0,
-            targetAltitude: 1500, // Distance to moon (increased from 1000)
-            velocity: 0,
-            maxVelocity: 500,
-            shake: 0,
-            tilt: 0,
-            launched: false,
-            enginePower: 0,
-            // New physics properties
-            gravity: 50, // Gravity pulls rocket down when no fuel
-            minVelocity: -150, // Terminal falling velocity (negative = falling)
-            isFalling: false
+
+        // Wave system
+        this.currentWave = 1;
+        this.waveTimeElapsed = 0;
+        this.waveDuration = this.config.GAME?.WAVE_DURATION || 25;
+        this.isWaveTransitioning = false;
+        this.waveTransitionTimer = 0;
+        this.obstaclesDestroyedThisWave = 0;
+
+        // Game speed (increases over time)
+        this.gameSpeed = this.difficultyConfig.startSpeed || this.config.GAME?.START_SPEED || 150;
+        this.maxSpeed = this.difficultyConfig.maxSpeed || this.config.GAME?.MAX_SPEED || 400;
+
+        // Ground level
+        this.groundY = 0;
+
+        // Components (initialized in init())
+        this.player = null;
+        this.background = null;
+        this.obstacleManager = null;
+        this.projectileManager = null;
+
+        // Notification queue (prevents overlaps)
+        this.notifications = [];
+        this.notificationSlots = []; // Track active slots
+        this.maxNotificationSlots = 3;
+
+        this.comboTimer = 0;
+        this.comboDecayTime = this.config.COMBO?.DECAY_TIME || 5; // Increased decay time
+
+        // Letter/word display
+        this.currentTargetObstacle = null;
+        this.lockedElite = null; // Currently targeted elite
+
+        // Power-ups (weapons with distinct projectile visuals)
+        this.powerUps = {
+            rapidFire: { active: false, timer: 0, notified: false },
+            spreadShot: { active: false, timer: 0, notified: false },
+            explosive: { active: false, timer: 0, notified: false }
         };
-        
-        // Word-based typing (uses dictionary)
-        this.useWordMode = true;
-        this.currentWord = null;
-        this.currentWordIndex = 0;
-        this.wordQueue = [];
-        
-        // Current letter to type
-        this.currentLetter = '';
-        this.nextLetters = [];
-        this.lettersQueue = 5;
-        
-        // Difficulty settings
-        this.difficulty = game.player.getDifficulty();
-        this.letters = Utils.getLettersByDifficulty(this.difficulty);
-        
-        // Visual elements
-        this.stars = [];
-        this.clouds = [];
-        this.moon = null;
-        this.launchPad = null;
-        
-        // Stages of the journey
-        this.stage = 'launchpad'; // launchpad, atmosphere, space, moon
-        this.stageProgress = 0;
-        
-        // Boost meter
-        this.boostMeter = 0;
-        this.boostActive = false;
-        
-        // Adaptive difficulty
-        this.letterTimer = 0;
-        this.letterTimeout = this.getLetterTimeout();
-        
-        // Danger indicators
-        this.warningFlash = 0;
-        this.criticalAltitude = false;
-        this.warningAlarmActive = false;  // Track warning alarm state
-        this.lastBoostSoundTime = 0;  // Throttle boost sounds
+
+        // Visual effects
+        this.screenFlashColor = null;
+        this.screenFlashAlpha = 0;
+
+        // Wave end flag
+        this.waveFlag = null; // { x, y, reached }
     }
-    
-    getLetterTimeout() {
-        const timeouts = {
-            'beginner': 4000,
-            'easy': 3000,
-            'medium': 2500,
-            'hard': 2000
-        };
-        return timeouts[this.difficulty] || 3000;
-    }
-    
+
     init() {
-        // Position rocket at bottom center
-        this.rocket.x = this.canvas.width / 2;
-        this.rocket.y = this.canvas.height - 200;
-        this.rocket.targetY = this.rocket.y;
-        
+        // Calculate ground Y
+        this.groundY = this.canvas.height * (this.config.GAME?.GROUND_Y_PERCENT || 0.75);
+
+        // Initialize background
+        this.background = new RocketRunnerBackground(this.canvas, this.config);
+
+        // Initialize player
+        this.player = new RocketRunner(this.canvas, this.config, this.particles);
+        this.player.init(this.groundY);
+
+        // Add bonus health for easier difficulties
+        const healthBonus = this.difficultyConfig.healthBonus || 0;
+        this.player.health += healthBonus;
+
+        // Initialize obstacle manager
+        this.obstacleManager = new ObstacleManager(this.canvas, this.config, this.particles);
+        this.obstacleManager.init(this.letters, this.difficulty);
+
+        // Initialize projectile manager
+        this.projectileManager = new ProjectileManager(this.canvas, this.config, this.particles);
+        this.projectileManager.obstacleManager = this.obstacleManager; // For spread projectile collision
+
         // Reset state
         this.score = 0;
         this.combo = 0;
@@ -112,519 +112,722 @@ class RocketLaunchLevel {
         this.correctCount = 0;
         this.wrongCount = 0;
         this.timeElapsed = 0;
-        this.rocket.fuel = 50; // Start with half fuel
-        this.rocket.altitude = 0;
-        this.rocket.velocity = 0;
-        this.rocket.launched = false;
-        this.rocket.enginePower = 0;
-        this.rocket.shake = 0;
-        this.rocket.tilt = 0;
-        this.rocket.isFalling = false;
-        this.boostMeter = 0;
-        this.boostActive = false;
-        this.stage = 'launchpad';
-        this.stageProgress = 0;
-        this.warningFlash = 0;
-        this.criticalAltitude = false;
-        
-        // Initialize word mode if available
-        if (this.useWordMode && window.WordDictionary) {
-            this.wordQueue = WordDictionary.getThemedWords('space', this.difficulty);
-            if (this.wordQueue.length === 0) {
-                this.wordQueue = WordDictionary.getRandomWords(20, this.difficulty);
-            }
-            this.currentWord = this.wordQueue.shift();
-            this.currentWordIndex = 0;
-            this.currentLetter = this.currentWord ? this.currentWord[0] : this.getRandomLetter();
-        } else {
-            // Fallback to random letters
-            this.nextLetters = [];
-            for (let i = 0; i < this.lettersQueue; i++) {
-                this.nextLetters.push(this.getRandomLetter());
-            }
-            this.currentLetter = this.nextLetters.shift();
-            this.nextLetters.push(this.getRandomLetter());
-        }
-        
-        // Initialize visual elements
-        this.initStars();
-        this.initClouds();
-        
-        // Moon position
-        this.moon = {
-            x: this.canvas.width / 2,
-            y: -200,
-            radius: 80,
-            visible: false
-        };
-        
-        // Launch pad
-        this.launchPad = {
-            x: this.canvas.width / 2,
-            y: this.canvas.height - 100,
-            width: 120,
-            height: 40
-        };
-        
-        this.letterTimer = Date.now();
+        this.currentWave = 1;
+        this.waveTimeElapsed = 0;
+        this.isWaveTransitioning = false;
+        this.waveTransitionTimer = 0;
+        this.obstaclesDestroyedThisWave = 0;
+        this.gameSpeed = this.difficultyConfig.startSpeed || this.config.GAME?.START_SPEED || 150;
+        this.notifications = [];
+        this.notificationSlots = [];
+        this.comboTimer = 0;
+        this.currentTargetObstacle = null;
+        this.lockedElite = null;
+        this.lastEarnedStars = 0; // Track stars earned to avoid duplicate messages
+
+        // Reset power-ups
+        Object.keys(this.powerUps).forEach(key => {
+            this.powerUps[key].active = false;
+            this.powerUps[key].timer = 0;
+            this.powerUps[key].notified = false;
+        });
     }
-    
-    initStars() {
-        this.stars = [];
-        for (let i = 0; i < 100; i++) {
-            this.stars.push({
-                x: Math.random() * this.canvas.width,
-                y: Math.random() * this.canvas.height,
-                size: Math.random() * 2 + 0.5,
-                twinkle: Math.random() * Math.PI * 2,
-                speed: Math.random() * 0.5 + 0.5
-            });
-        }
-    }
-    
-    initClouds() {
-        this.clouds = [];
-        for (let i = 0; i < 8; i++) {
-            this.clouds.push({
-                x: Math.random() * this.canvas.width,
-                y: this.canvas.height * 0.3 + Math.random() * this.canvas.height * 0.4,
-                width: Math.random() * 200 + 100,
-                height: Math.random() * 60 + 40,
-                speed: Math.random() * 20 + 10,
-                opacity: Math.random() * 0.3 + 0.1
-            });
-        }
-    }
-    
-    getRandomLetter() {
-        // Occasionally use weak letters
-        const weakLetters = this.game.player.getWeakestLetters(3);
-        if (weakLetters.length > 0 && Math.random() < 0.3) {
-            return Utils.randomChoice(weakLetters);
-        }
-        return Utils.randomChoice(this.letters);
-    }
-    
-    getNextLetter() {
-        if (this.useWordMode && this.currentWord && window.WordDictionary) {
-            this.currentWordIndex++;
-            if (this.currentWordIndex >= this.currentWord.length) {
-                // Move to next word
-                this.currentWord = this.wordQueue.shift();
-                if (!this.currentWord) {
-                    // Refill word queue
-                    this.wordQueue = WordDictionary.getThemedWords('space', this.difficulty);
-                    if (this.wordQueue.length === 0) {
-                        this.wordQueue = WordDictionary.getRandomWords(20, this.difficulty);
-                    }
-                    this.currentWord = this.wordQueue.shift();
-                }
-                this.currentWordIndex = 0;
-            }
-            return this.currentWord ? this.currentWord[this.currentWordIndex] : this.getRandomLetter();
-        }
-        return this.getRandomLetter();
-    }
-    
+
     start() {
         this.state = 'playing';
         this.init();
+        this.showWaveStart();
     }
-    
+
     pause() {
         this.state = 'paused';
-        // Pause warning alarm if active
-        if (this.warningAlarmActive) {
-            AudioManager.stopWarningAlarm();
-        }
     }
-    
+
     resume() {
         this.state = 'playing';
-        // Resume warning alarm if fuel is empty
-        if (this.warningAlarmActive && this.rocket.fuel <= 0) {
-            AudioManager.startWarningAlarm();
-        }
     }
-    
+
+    showWaveStart() {
+        const waveText = this.currentWave <= 2 ? `WAVE ${this.currentWave}` :
+            this.currentWave <= 4 ? `WAVE ${this.currentWave} - FASTER!` :
+                `WAVE ${this.currentWave} - INTENSE!`;
+
+        // Clear any existing notifications first
+        this.notifications = [];
+        this.notificationSlots = [];
+
+        this.addNotification(`🌊 ${waveText} 🌊`, 2.5, 2, 0);
+
+        setTimeout(() => {
+            this.addNotification('Type to SHOOT! SPACE to JUMP!', 1.8, 1.2, 1);
+        }, 700);
+    }
+
+    // Improved notification system with slots to prevent overlap
+    addNotification(text, duration = 2, scale = 1.5, slot = -1) {
+        // Find available slot if not specified
+        if (slot < 0) {
+            for (let i = 0; i < this.maxNotificationSlots; i++) {
+                if (!this.notificationSlots[i]) {
+                    slot = i;
+                    break;
+                }
+            }
+            if (slot < 0) slot = 0; // Fallback to first slot
+        }
+
+        // Mark slot as used
+        this.notificationSlots[slot] = true;
+
+        // Calculate Y position based on slot - INCREASED spacing
+        const baseY = this.canvas.height / 2 - 120;
+        const slotHeight = 80;
+
+        const notification = {
+            text: text,
+            x: this.canvas.width / 2,
+            y: baseY + slot * slotHeight,
+            alpha: 1,
+            scale: scale,
+            life: duration,
+            maxLife: duration,
+            slot: slot
+        };
+
+        this.notifications.push(notification);
+    }
+
     handleKeyPress(key) {
         if (this.state !== 'playing') return;
-        
-        const pressedLetter = key.toUpperCase();
-        const expectedLetter = this.useWordMode && this.currentWord 
-            ? this.currentWord[this.currentWordIndex]
-            : this.currentLetter;
-        
-        if (pressedLetter === expectedLetter) {
-            this.correctKeyPress();
-        } else {
-            this.wrongKeyPress(pressedLetter);
+
+        // Space = Jump
+        if (key === ' ' || key === 'Space') {
+            this.handleJump();
+            return;
+        }
+
+        // Letter keys
+        if (key.length === 1 && key.match(/[a-zA-Z]/)) {
+            this.handleLetterPress(key.toUpperCase());
         }
     }
-    
-    correctKeyPress() {
+
+    handleJump() {
+        if (this.player.jump()) {
+            AudioManager.playRocketBoost();
+        }
+    }
+
+    handleLetterPress(letter) {
+        // Use the obstacle manager's new input handling (supports word typing)
+        const result = this.obstacleManager.handleLetterInput(letter);
+
+        switch (result.type) {
+            case 'regular':
+                // Regular obstacle hit - fire projectile, destroy with exact travel time
+                const projectile = this.fireAtTarget(result.target);
+                this.recordCorrect(letter);
+                const regularTarget = result.target;
+                regularTarget.pendingDestroy = true; // Prevent re-targeting
+                // Use projectile's calculated travel time + speed-scaled buffer
+                // Higher gameSpeed = more drift during flight = larger buffer needed
+                const speedBuffer = Math.max(30, (this.gameSpeed / 800) * 80);
+                const delay = projectile ? (projectile.timeToHit * 1000) + speedBuffer : 200;
+                setTimeout(() => {
+                    if (!regularTarget.isDestroyed) {
+                        this.destroyObstacle(regularTarget);
+                    }
+                }, delay);
+                break;
+
+            case 'elite_start':
+                // Started typing a word (locked on)
+                this.lockedElite = result.target;
+                this.fireAtTarget(result.target, true); // Partial hit
+                this.recordCorrect(letter, true);
+                AudioManager.playTypeLock(); // New lock-on sound
+                break;
+
+            case 'elite_progress':
+                // Continuing to type a word
+                this.fireAtTarget(result.target, true);
+                this.recordCorrect(letter, true);
+                break;
+
+            case 'elite_complete':
+                // Completed typing a word - fire final projectile, delay based on travel time
+                this.lockedElite = null;
+                const eliteProjectile = this.fireAtTarget(result.target);
+                this.recordCorrect(letter);
+                const eliteTarget = result.target;
+                eliteTarget.pendingDestroy = true;
+                // Use projectile's calculated travel time + speed-scaled buffer for drama
+                const eliteSpeedBuffer = Math.max(80, (this.gameSpeed / 800) * 150);
+                const eliteDelay = eliteProjectile ? (eliteProjectile.timeToHit * 1000) + eliteSpeedBuffer : 300;
+                setTimeout(() => {
+                    if (!eliteTarget.isDestroyed) {
+                        this.destroyObstacle(eliteTarget);
+                        this.game.screenShake.start(15, 400);
+                        AudioManager.playBossDestruction(); // Epic boss defeat sound!
+                    }
+                }, eliteDelay);
+                // Bonus notification
+                this.addNotification(`💀 ${result.target.word} DESTROYED!`, 1.5, 1.3);
+                break;
+
+            case 'wrong':
+                this.recordWrong(letter);
+                // On wrong letter during boss word: reset progress but keep lock
+                // Player can retry from the beginning
+                if (this.lockedElite) {
+                    this.lockedElite.resetTyping(); // Reset to first letter
+                    this.addNotification('❌ WORD RESET - Try Again!', 1, 1.2);
+                }
+                break;
+        }
+    }
+
+    // Mark target for destruction when projectile hits
+    queueDestruction(target, isElite = false) {
+        // Mark as pending destruction (prevent re-targeting)
+        target.pendingDestroy = true;
+        target.isEliteTarget = isElite; // Store for later screen shake
+    }
+
+    // Fire projectile at target with predictive aiming
+    fireAtTarget(target, isPartialHit = false) {
+        // Trigger player shoot animation
+        this.player.shoot();
+        AudioManager.playShortLaser(); // New short laser sound
+
+        // Get gun position
+        const gunPos = this.player.getGunPosition();
+
+        // Get current weapon config - prioritize by power level
+        const weaponType = this.powerUps.explosive.active ? 'EXPLOSIVE' :
+            this.powerUps.spreadShot.active ? 'SPREAD_SHOT' :
+                this.powerUps.rapidFire.active ? 'RAPID_FIRE' : 'DEFAULT';
+        const weaponConfig = this.config.WEAPONS?.[weaponType] || this.config.WEAPONS?.DEFAULT;
+
+        // Fire main projectile and capture it for timing info
+        const mainProjectile = this.projectileManager.fireAt(
+            gunPos.x, gunPos.y,
+            target,
+            this.gameSpeed,
+            weaponConfig
+        );
+
+        // Spread shot: fire additional projectiles at spread angles
+        if (weaponType === 'SPREAD_SHOT' && weaponConfig.spreadCount > 1) {
+            // Calculate base angle towards target
+            const targetX = target.x + target.width / 2;
+            const targetY = target.y + target.height / 2;
+            const baseAngle = Math.atan2(targetY - gunPos.y, targetX - gunPos.x);
+
+            // Fire spread projectiles at ±15° angles (hits whatever is in their path)
+            const spreadAngle = Math.PI / 12; // 15 degrees
+            this.projectileManager.fireAtAngle(gunPos.x, gunPos.y, baseAngle, -spreadAngle, weaponConfig);
+            this.projectileManager.fireAtAngle(gunPos.x, gunPos.y, baseAngle, spreadAngle, weaponConfig);
+            AudioManager.playScatterLaser(); // New scatter laser sound for spread
+        }
+
+        // Screen shake (small for partial, larger for full)
+        this.game.screenShake.start(isPartialHit ? 2 : 4, isPartialHit ? 50 : 100);
+
+        // Return main projectile for timing info
+        return mainProjectile;
+    }
+
+    destroyObstacle(obstacle) {
+        const points = this.obstacleManager.destroyObstacle(obstacle, this.particles);
+
+        // Calculate score with combo
+        const comboMultiplier = this.getComboMultiplier();
+        const scoreGained = Math.round(points * comboMultiplier);
+        this.score += scoreGained;
+
+        // Show score popup
+        this.game.showScorePopup(
+            obstacle.x + obstacle.width / 2,
+            obstacle.y,
+            scoreGained
+        );
+
+        // Handle collectibles
+        if (obstacle.isCollectible && obstacle.bonusHealth > 0) {
+            this.player.heal(obstacle.bonusHealth);
+            this.addNotification('💚 +1 HEALTH!', 1.5, 1.2);
+            AudioManager.playHealthUp(); // New health pickup sound
+        }
+
+        // Explosive rounds: AoE damage
+        if (this.powerUps.explosive.active && !obstacle.isCollectible) {
+            const explosionRadius = this.config.WEAPONS?.EXPLOSIVE?.explosionRadius || 120;
+            const nearbyObstacles = this.obstacleManager.obstacles.filter(o => {
+                if (o.isDestroyed || o === obstacle) return false;
+                const dx = o.x - obstacle.x;
+                const dy = o.y - obstacle.y;
+                return Math.sqrt(dx * dx + dy * dy) < explosionRadius;
+            });
+
+            nearbyObstacles.forEach(o => {
+                setTimeout(() => this.destroyObstacle(o), 50);
+            });
+
+            // Big explosion particles
+            this.particles.explosion(
+                obstacle.x + obstacle.width / 2,
+                obstacle.y + obstacle.height / 2,
+                {
+                    count: 35,
+                    colors: ['#ff4444', '#ff8844', '#ffcc00', '#ffffff'],
+                    speed: 300,
+                    size: 12,
+                    life: 0.8
+                }
+            );
+            this.game.screenShake.start(10, 200);
+        }
+
+        // Play sound (bossDestruction is played separately in elite_complete handler)
+        if (obstacle.isCollectible) {
+            AudioManager.playCorrect();
+        } else if (!obstacle.isElite) {
+            // Regular obstacles get explosion sound (bosses use bossDestruction)
+            AudioManager.playExplosion('small');
+        }
+
+        this.obstaclesDestroyedThisWave++;
+    }
+
+    recordCorrect(letter, isPartialWord = false) {
         this.combo++;
         this.maxCombo = Math.max(this.maxCombo, this.combo);
         this.correctCount++;
-        
-        // Add fuel (more fuel at higher combos)
-        const fuelGain = 10 + Math.floor(this.combo / 3) * 2;
-        this.rocket.fuel = Math.min(this.rocket.maxFuel, this.rocket.fuel + fuelGain);
-        
-        // Clear falling state when fuel is added
-        this.rocket.isFalling = false;
-        
-        // Calculate score
-        const baseScore = 100;
-        const comboMultiplier = 1 + Math.floor(this.combo / 5) * 0.5;
-        const scoreGained = Math.round(baseScore * comboMultiplier);
-        this.score += scoreGained;
-        
-        // Play sound
-        if (this.combo > 1) {
-            AudioManager.playCombo(this.combo);
-        } else {
-            AudioManager.playCorrect();
+        this.comboTimer = 0;
+
+        // Play combo sound (not for partial word hits)
+        if (!isPartialWord) {
+            if (this.combo > 1) {
+                AudioManager.playCombo(this.combo);
+            } else {
+                AudioManager.playCorrect();
+            }
         }
-        
-        // Play rocket boost sound (throttled to avoid spam)
-        const now = Date.now();
-        if (now - this.lastBoostSoundTime > 300) {  // Max once per 300ms
-            AudioManager.playRocketBoost();
-            this.lastBoostSoundTime = now;
-        }
-        
-        // Stop warning alarm if fuel recovered
-        if (this.warningAlarmActive && this.rocket.fuel > 15) {
-            AudioManager.stopWarningAlarm();
-            this.warningAlarmActive = false;
-        }
-        
-        // Rocket boost effect
-        this.rocket.enginePower = Math.min(1, this.rocket.enginePower + 0.2);
-        
-        // Build boost meter
-        this.boostMeter = Math.min(100, this.boostMeter + 15);
-        if (this.boostMeter >= 100 && !this.boostActive) {
-            this.activateBoost();
-        }
-        
-        // Particles from rocket
-        this.spawnFuelParticles();
-        
-        // Score popup
-        this.game.showScorePopup(this.rocket.x, this.rocket.y - 80, scoreGained);
-        
-        // Record performance
-        const currentLetter = this.useWordMode && this.currentWord 
-            ? this.currentWord[this.currentWordIndex]
-            : this.currentLetter;
-        this.game.player.recordLetterPerformance(currentLetter, true);
-        
-        // Next letter
-        this.advanceToNextLetter();
-        
-        // Check combo achievements
+
+        // Record for player stats
+        this.game.player.recordLetterPerformance(letter, true);
+
+        // Check power-up unlocks
+        this.checkPowerUps();
+
+        // Combo achievements
         if (this.combo === 10) this.game.checkAchievement('combo_10');
         if (this.combo === 25) this.game.checkAchievement('combo_25');
         if (this.combo === 50) this.game.checkAchievement('combo_50');
     }
-    
-    wrongKeyPress(letter) {
+
+    recordWrong(letter) {
         this.combo = 0;
         this.wrongCount++;
-        
-        // Lose fuel
-        this.rocket.fuel = Math.max(0, this.rocket.fuel - 5);
-        
-        // Rocket shake effect
-        this.rocket.shake = 10;
-        this.rocket.tilt = Utils.random(-0.1, 0.1);
-        
-        // Reset boost meter
-        this.boostMeter = Math.max(0, this.boostMeter - 30);
-        
-        // Play sound and flash
+        this.comboTimer = 0;
+
         AudioManager.playWrong();
         this.game.flashScreen('#ff4444');
-        
-        // Error particles
-        this.particles.explosion(this.rocket.x, this.rocket.y, {
-            count: 10,
-            colors: ['#ff4444', '#ff8844'],
-            speed: 100,
-            size: 5,
-            life: 0.5
-        });
-        
-        // Record performance
+
+        // Screen shake
+        this.game.screenShake.start(4, 100);
+
+        // Record for player stats
         this.game.player.recordLetterPerformance(letter, false);
-    }
-    
-    advanceToNextLetter() {
-        if (this.useWordMode && this.currentWord) {
-            this.currentLetter = this.getNextLetter();
-        } else {
-            this.currentLetter = this.nextLetters.shift();
-            this.nextLetters.push(this.getRandomLetter());
-        }
-        this.letterTimer = Date.now();
-    }
-    
-    activateBoost() {
-        this.boostActive = true;
-        this.boostMeter = 0;
-        
-        AudioManager.playPowerUp();
-        
-        // Boost effects
-        this.particles.ring(this.rocket.x, this.rocket.y, {
-            count: 30,
-            color: '#00ffff',
-            speed: 300
+
+        // Reset power-up notification flags
+        Object.keys(this.powerUps).forEach(key => {
+            this.powerUps[key].notified = false;
         });
-        
-        // Temporary speed boost
-        setTimeout(() => {
-            this.boostActive = false;
-        }, 3000);
     }
-    
-    spawnFuelParticles() {
-        const colors = this.boostActive 
-            ? ['#00ffff', '#00ff88', '#ffffff']
-            : ['#ff6b6b', '#ffd93d', '#ff8c42'];
-        
-        this.particles.fire(
-            this.rocket.x,
-            this.rocket.y + this.rocket.height / 2,
-            Math.PI / 2,
-            {
-                count: 10,
-                colors: colors,
-                speed: 200,
-                spread: 0.3
+
+    getComboMultiplier() {
+        const thresholds = this.config.COMBO?.MULTIPLIER_THRESHOLDS || [5, 10, 15, 25];
+        let multiplier = 1;
+
+        for (const threshold of thresholds) {
+            if (this.combo >= threshold) {
+                multiplier += 0.5;
             }
-        );
+        }
+
+        return Math.min(multiplier, this.config.COMBO?.MAX_MULTIPLIER || 4);
     }
-    
+
+    checkPowerUps() {
+        const powerUpConfig = this.config.COMBO?.POWER_UPS || {};
+
+        // Show notification when first reaching each threshold
+        // (actual weapon activation is handled in updatePowerUps based on current combo)
+        // Hierarchy: Rapid Fire (5) < Explosive (8) < Spread Shot (12)
+
+        // Rapid Fire at 5 combo
+        if (this.combo >= (powerUpConfig.RAPID_FIRE?.comboRequired || 5) && !this.powerUps.rapidFire.notified) {
+            this.powerUps.rapidFire.notified = true;
+            this.addNotification(`${powerUpConfig.RAPID_FIRE?.icon || '⚡'} RAPID FIRE UNLOCKED!`, 2, 1.5);
+            AudioManager.playPowerUpNew(); // New power-up sound
+        }
+
+        // Explosive at 8 combo
+        if (this.combo >= (powerUpConfig.EXPLOSIVE?.comboRequired || 8) && !this.powerUps.explosive.notified) {
+            this.powerUps.explosive.notified = true;
+            this.addNotification(`${powerUpConfig.EXPLOSIVE?.icon || '💥'} EXPLOSIVE UNLOCKED!`, 2, 1.5);
+            AudioManager.playPowerUpNew(); // New power-up sound
+        }
+
+        // Spread Shot at 12 combo (BEST weapon!)
+        if (this.combo >= (powerUpConfig.SPREAD_SHOT?.comboRequired || 12) && !this.powerUps.spreadShot.notified) {
+            this.powerUps.spreadShot.notified = true;
+            this.addNotification(`${powerUpConfig.SPREAD_SHOT?.icon || '🔥'} SPREAD SHOT UNLOCKED!`, 2, 1.5);
+            AudioManager.playPowerUpNew(); // New power-up sound
+        }
+
+        // Reset notified flags when combo drops below thresholds
+        if (this.combo < (powerUpConfig.RAPID_FIRE?.comboRequired || 5)) {
+            this.powerUps.rapidFire.notified = false;
+        }
+        if (this.combo < (powerUpConfig.EXPLOSIVE?.comboRequired || 8)) {
+            this.powerUps.explosive.notified = false;
+        }
+        if (this.combo < (powerUpConfig.SPREAD_SHOT?.comboRequired || 12)) {
+            this.powerUps.spreadShot.notified = false;
+        }
+    }
+
     update(dt, currentTime) {
         if (this.state !== 'playing') return;
-        
+
         this.timeElapsed += dt;
-        
-        // No time limit - the challenge is the physics (gravity and fuel)
-        // The game ends when: 
-        // 1. Victory: Reached the moon (altitude >= targetAltitude)
-        // 2. Defeat: Crashed (falling rocket hits ground)
-        
-        // Check letter timeout
-        if (currentTime - this.letterTimer > this.letterTimeout) {
-            // Letter timed out - counts as miss
-            this.combo = 0;
-            this.rocket.fuel = Math.max(0, this.rocket.fuel - 3);
-            this.advanceToNextLetter();
-        }
-        
-        // === IMPROVED ROCKET PHYSICS ===
-        if (this.rocket.fuel > 0) {
-            // Has fuel - accelerate upward
-            const fuelConsumption = 5 * dt;
-            this.rocket.fuel = Math.max(0, this.rocket.fuel - fuelConsumption);
-            
-            // Accelerate (positive velocity = going up)
-            const baseAcceleration = 100;
-            const boostMultiplier = this.boostActive ? 2.5 : 1;
-            this.rocket.velocity = Math.min(
-                this.rocket.maxVelocity * boostMultiplier,
-                this.rocket.velocity + baseAcceleration * dt * this.rocket.enginePower
-            );
-            
-            this.rocket.isFalling = false;
-            
-            // Engine particles
-            if (this.rocket.enginePower > 0.1) {
-                this.spawnEngineParticles();
-            }
-        } else {
-            // NO FUEL - Apply gravity and decelerate
-            // Start warning alarm when fuel is empty
-            if (!this.warningAlarmActive) {
-                AudioManager.startWarningAlarm();
-                this.warningAlarmActive = true;
-            }
-            
-            // First, velocity decreases (rocket slows down)
-            if (this.rocket.velocity > 0) {
-                // Still going up but slowing down
-                this.rocket.velocity = Math.max(0, this.rocket.velocity - this.rocket.gravity * dt);
-                
-                // Warning flash when slowing
-                this.warningFlash = (this.warningFlash + dt * 5) % (Math.PI * 2);
-            } else {
-                // Velocity is zero or negative - START FALLING
-                this.rocket.isFalling = true;
-                
-                // Apply gravity (accelerate downward)
-                this.rocket.velocity = Math.max(
-                    this.rocket.minVelocity, // Terminal falling velocity
-                    this.rocket.velocity - this.rocket.gravity * dt
-                );
-            }
-        }
-        
-        // Update altitude (can go negative if falling below start)
-        const previousAltitude = this.rocket.altitude;
-        this.rocket.altitude += this.rocket.velocity * dt;
-        
-        // CLAMP altitude to minimum 0 - rocket cannot go below ground level
-        // This keeps the rocket visible and gives player a chance to recover
-        if (this.rocket.altitude < 0) {
-            this.rocket.altitude = 0;
-            
-            // If still falling when hitting ground, it's game over
-            if (this.rocket.isFalling && this.rocket.velocity < -50) {
-                this.gameOver(false);
-                return;
-            }
-            
-            // Stop falling velocity when at ground
-            if (this.rocket.velocity < 0) {
-                this.rocket.velocity = 0;
-            }
-        }
-        
-        // Check victory (reached moon)
-        if (this.rocket.altitude >= this.rocket.targetAltitude) {
-            this.gameOver(true);
+
+        // Check for game over
+        if (this.player.isDead) {
+            this.gameOver(false);
             return;
         }
-        
-        // Set critical altitude warning when low and falling
-        this.criticalAltitude = this.rocket.isFalling && this.rocket.altitude < 100;
-        
-        // Update stage based on altitude
-        const altitudePercent = Math.max(0, this.rocket.altitude / this.rocket.targetAltitude);
-        if (altitudePercent < 0.15) {
-            this.stage = 'launchpad';
-        } else if (altitudePercent < 0.4) {
-            this.stage = 'atmosphere';
-        } else if (altitudePercent < 0.85) {
-            this.stage = 'space';
-        } else {
-            this.stage = 'moon';
-        }
-        this.stageProgress = altitudePercent;
-        
-        // Update rocket visual position - CLAMPED to stay on screen
-        // The rocket stays at the bottom when altitude is 0, and rises with altitude
-        const minY = this.canvas.height - 200; // Ground position
-        const maxY = this.canvas.height * 0.3;  // Highest visual position
-        
-        // Map altitude to visual position, clamped to screen bounds
-        this.rocket.targetY = Utils.lerp(
-            minY,
-            maxY,
-            Math.min(1, Math.max(0, altitudePercent * 2))
-        );
-        
-        // Ensure rocket never goes below the ground visually
-        this.rocket.targetY = Math.min(this.rocket.targetY, minY);
-        
-        this.rocket.y += (this.rocket.targetY - this.rocket.y) * 5 * dt;
-        
-        // Clamp final Y position to stay on screen
-        this.rocket.y = Math.min(this.rocket.y, this.canvas.height - 100);
-        
-        // Decay engine power
-        this.rocket.enginePower *= 0.95;
-        
-        // Decay shake
-        this.rocket.shake *= 0.9;
-        this.rocket.tilt *= 0.95;
-        
-        // Update clouds (move down as rocket goes up)
-        this.clouds.forEach(cloud => {
-            cloud.y += this.rocket.velocity * dt * 0.3;
-            if (cloud.y > this.canvas.height + 100) {
-                cloud.y = -100;
-                cloud.x = Math.random() * this.canvas.width;
+
+        // Wave transition
+        if (this.isWaveTransitioning) {
+            this.waveTransitionTimer -= dt;
+            if (this.waveTransitionTimer <= 0) {
+                this.isWaveTransitioning = false;
+                this.currentWave++;
+                this.obstaclesDestroyedThisWave = 0;
+                this.waveTimeElapsed = 0;
+                this.waveFlag = null; // Reset flag for new wave
+                this.obstacleManager.spawningPaused = false; // Resume spawning
+                this.obstacleManager.setWave(this.currentWave);
+
+                // Increase wave duration for later waves - makes achieving 3 stars harder!
+                // Wave 1: 25s, Wave 5: 30s, Wave 10: 37.5s
+                const baseDuration = this.config.GAME?.WAVE_DURATION || 25;
+                const durationIncrease = (this.currentWave - 1) * 1.5; // +1.5s per wave
+                this.waveDuration = baseDuration + durationIncrease;
+
+                this.showWaveStart();
             }
-        });
-        
-        // Update stars (parallax)
-        this.stars.forEach(star => {
-            star.y += this.rocket.velocity * dt * 0.1 * star.speed;
-            star.twinkle += dt * 2;
-            if (star.y > this.canvas.height) {
-                star.y = 0;
-                star.x = Math.random() * this.canvas.width;
-            }
-        });
-        
-        // Update moon visibility
-        this.moon.visible = this.stage === 'space' || this.stage === 'moon';
-        if (this.moon.visible) {
-            this.moon.y = Utils.lerp(
-                -200,
-                this.canvas.height * 0.2,
-                (altitudePercent - 0.4) / 0.6
-            );
+            return;
         }
-    }
-    
-    spawnEngineParticles() {
-        const colors = this.boostActive 
-            ? ['#00ffff', '#00ff88', '#ffffff']
-            : ['#ff6b6b', '#ffd93d', '#ff8c42'];
-        
-        for (let i = 0; i < 3; i++) {
-            this.particles.addParticle(new Particle(
-                this.rocket.x + Utils.random(-15, 15),
-                this.rocket.y + this.rocket.height / 2,
-                {
-                    vx: Utils.random(-30, 30),
-                    vy: Utils.random(100, 200),
-                    life: Utils.random(0.3, 0.6),
-                    size: Utils.random(8, 15),
-                    endSize: 0,
-                    color: Utils.randomChoice(colors),
-                    glow: true,
-                    glowSize: 10
+
+        // Wave timer
+        this.waveTimeElapsed += dt;
+
+        // Spawn finish flag when wave is about to end (5 seconds before)
+        const flagSpawnTime = this.waveDuration - 5;
+        if (this.waveTimeElapsed >= flagSpawnTime && !this.waveFlag) {
+            this.waveFlag = {
+                x: this.canvas.width + 100,
+                y: this.groundY - 120,
+                reached: false,
+                wavePhase: 0
+            };
+            // Stop spawning obstacles beyond the flag
+            this.obstacleManager.spawningPaused = true;
+            this.addNotification('🏁 FINISH LINE AHEAD!', 2, 1.3);
+        }
+
+        // Update flag position
+        if (this.waveFlag && !this.waveFlag.reached) {
+            this.waveFlag.x -= this.gameSpeed * dt;
+            this.waveFlag.wavePhase += dt * 8;
+
+            // Check if player reached the flag
+            if (this.waveFlag.x <= this.player.x + this.player.width + 30) {
+                this.waveFlag.reached = true;
+                this.completeWave();
+                return;
+            }
+        }
+
+        // Fallback: complete wave by time only if flag somehow glitched (very long fallback)
+        if (this.waveTimeElapsed >= this.waveDuration + 10) {
+            if (!this.waveFlag || !this.waveFlag.reached) {
+                // Force flag reached if we hit fallback
+                if (this.waveFlag) this.waveFlag.reached = true;
+            }
+            this.completeWave();
+            return;
+        }
+
+        // Combo only resets on collision (removed time-based decay)
+        // this.comboTimer is no longer used for decay
+
+        // Update game speed
+        const speedIncrease = (this.config.GAME?.SPEED_INCREASE_RATE || 5) * dt;
+        this.gameSpeed = Math.min(this.maxSpeed, this.gameSpeed + speedIncrease);
+
+        // Update power-up timers
+        this.updatePowerUps(dt);
+
+        // Update background
+        this.background.update(dt, this.gameSpeed);
+
+        // Update player
+        this.player.update(dt);
+
+        // No longer syncing invincibility (removed shield power-up)
+
+        // Update obstacles and check for escaped elites
+        const updateResult = this.obstacleManager.update(dt, this.gameSpeed, this.groundY);
+
+        // Handle escaped elites - they deal 2 damage for getting away!
+        if (updateResult?.escapedElites) {
+            updateResult.escapedElites.forEach(elite => {
+                if (!this.player.isInvincible) {
+                    // Deal 2 damage for letting a boss escape
+                    this.player.takeDamage();
+                    this.player.takeDamage();
+                    this.combo = 0; // Reset combo
+                    AudioManager.playExplosion('large');
+                    this.game.flashScreen('#ff4444');
+                    this.game.screenShake.start(12, 300);
+                    this.addNotification(`⚠️ BOSS ESCAPED! -2 HEALTH!`, 1.5, 1.4);
                 }
-            ));
+            });
+        }
+
+        // Update projectiles
+        this.projectileManager.update(dt);
+
+        // Check projectile hits - actually destroy targets when projectiles collide
+        const hits = this.projectileManager.checkHits();
+        hits.forEach(hit => {
+            const target = hit.target;
+
+            // Spread projectile hits destroy regular obstacles on impact
+            // (Bosses are not affected by spread - must type to destroy)
+            if (hit.isSpreadHit && !target.isDestroyed) {
+                target.pendingDestroy = true;
+                this.destroyObstacle(target);
+            }
+            // Regular projectile hits (primary target)
+            else if (target.pendingDestroy && !target.isDestroyed) {
+                this.destroyObstacle(target);
+
+                // Extra screen shake and sound for elite boss
+                if (target.isEliteTarget || target.isElite) {
+                    this.game.screenShake.start(15, 400);
+                    AudioManager.playBossDestruction(); // Boss defeat sound!
+                }
+            }
+
+            // Spawn hit particles at impact point
+            const hitConfig = this.config.PARTICLES?.ENEMY_HIT || {};
+            this.particles.explosion(
+                hit.projectile.x, hit.projectile.y,
+                {
+                    count: hitConfig.count || 20,
+                    colors: hitConfig.colors || ['#ff8844', '#ffcc00', '#ffffff'],
+                    speed: hitConfig.speed || 250,
+                    size: hitConfig.size || 8,
+                    life: hitConfig.life || 0.5
+                }
+            );
+            // Play metallic impact only for regular obstacles (not health bonuses or bosses)
+            if (!target.isCollectible && !target.isElite) {
+                AudioManager.playMetallicImpact();
+            }
+        });
+
+        // Check collisions
+        const collision = this.obstacleManager.checkCollision(this.player.getHitbox());
+        if (collision && !collision.isDestroyed) {
+            this.handleCollision(collision);
+        }
+
+        // Update current target (closest typeable obstacle)
+        this.currentTargetObstacle = this.obstacleManager.getClosestTypeable();
+
+        // Sync locked elite
+        this.lockedElite = this.obstacleManager.lockedTarget;
+
+        // Update notifications
+        this.updateNotifications(dt);
+
+        // Check victory
+        this.checkVictory();
+    }
+
+    updatePowerUps(dt) {
+        const powerUpConfig = this.config.COMBO?.POWER_UPS || {};
+
+        // Power-ups stay active as long as combo is maintained at threshold
+        // This rewards players with high accuracy - keep your combo, keep your weapon!
+        // Hierarchy: Spread Shot (best) > Explosive > Rapid Fire
+
+        // Spread Shot: active at 12+ combo (BEST weapon)
+        const spreadReq = powerUpConfig.SPREAD_SHOT?.comboRequired || 12;
+        this.powerUps.spreadShot.active = this.combo >= spreadReq;
+
+        // Explosive: active at 8+ combo (but not if spread shot is better)
+        const explosiveReq = powerUpConfig.EXPLOSIVE?.comboRequired || 8;
+        this.powerUps.explosive.active = this.combo >= explosiveReq && this.combo < spreadReq;
+
+        // Rapid Fire: active at 5+ combo (but not if better weapons are active)
+        const rapidReq = powerUpConfig.RAPID_FIRE?.comboRequired || 5;
+        this.powerUps.rapidFire.active = this.combo >= rapidReq && this.combo < explosiveReq;
+
+        // Update weapon based on highest active power-up
+        if (this.powerUps.spreadShot.active) {
+            this.player.setWeapon('SPREAD_SHOT');
+        } else if (this.powerUps.explosive.active) {
+            this.player.setWeapon('EXPLOSIVE');
+        } else if (this.powerUps.rapidFire.active) {
+            this.player.setWeapon('RAPID_FIRE');
+        } else {
+            this.player.setWeapon('DEFAULT');
         }
     }
-    
+
+    handleCollision(obstacle) {
+        if (obstacle.isCollectible) {
+            // Auto-collect collectibles on touch
+            this.destroyObstacle(obstacle);
+        } else if (!this.player.isInvincible) {
+            // Elite enemies deal extra damage!
+            const isElite = obstacle.isElite;
+            const damageAmount = isElite ? 2 : 1;
+
+            // Deal damage
+            for (let i = 0; i < damageAmount; i++) {
+                this.player.takeDamage();
+            }
+            obstacle.isDestroyed = true;
+
+            // Break elite lock on damage
+            this.obstacleManager.breakLock();
+            this.lockedElite = null;
+
+            AudioManager.playExplosion(isElite ? 'large' : 'small');
+            this.game.flashScreen('#ff4444');
+            this.game.screenShake.start(isElite ? 15 : 8, isElite ? 400 : 200);
+
+            // Show damage notification for elites
+            if (isElite) {
+                this.addNotification('💥 BOSS HIT! -2 HEALTH!', 1.5, 1.4);
+            }
+
+            // Reset combo
+            this.combo = 0;
+        }
+    }
+
+    completeWave() {
+        this.isWaveTransitioning = true;
+        this.waveTransitionTimer = 4; // Increased to allow notifications to fade
+
+        // Wave bonus
+        const waveBonus = this.currentWave * 300;
+        this.score += waveBonus;
+
+        // Clear remaining obstacles
+        this.obstacleManager.clear();
+        this.projectileManager.clear();
+
+        // Calculate current stars and only show message if NEW star earned
+        let currentStars = 0;
+        if (this.currentWave >= 10) {
+            currentStars = 3;
+        } else if (this.currentWave >= 6) {
+            currentStars = 2;
+        } else if (this.currentWave >= 3) {
+            currentStars = 1;
+        }
+
+        // Clear existing notifications before showing new ones
+        this.notifications = [];
+        this.notificationSlots = [];
+
+        this.addNotification(`✨ WAVE ${this.currentWave} COMPLETE! +${waveBonus} ✨`, 2.5, 1.8, 0);
+
+        // Only show star message if we earned a NEW star this wave
+        if (currentStars > (this.lastEarnedStars || 0)) {
+            const starTexts = ['', '⭐ 1 STAR EARNED!', '⭐⭐ 2 STARS EARNED!', '⭐⭐⭐ 3 STARS EARNED!'];
+            this.lastEarnedStars = currentStars;
+            setTimeout(() => {
+                this.addNotification(starTexts[currentStars], 2.5, 1.6, 1);
+            }, 400);
+        }
+
+        AudioManager.playLevelComplete();
+        this.particles.confetti(0, 0, this.canvas.width, { count: 50 });
+    }
+
+    checkVictory() {
+        // Game is endless - no automatic victory condition
+        // Player chooses when to stop by pausing and quitting
+        // Stars are awarded based on waves completed (3/6/10)
+    }
+
+    updateNotifications(dt) {
+        this.notifications.forEach(n => {
+            n.life -= dt;
+            n.alpha = Math.min(1, n.life / 0.5);
+            n.y -= dt * 15;
+
+            // Free up slot when expired
+            if (n.life <= 0 && n.slot !== undefined) {
+                this.notificationSlots[n.slot] = false;
+            }
+        });
+
+        this.notifications = this.notifications.filter(n => n.life > 0);
+    }
+
     gameOver(victory) {
         this.state = victory ? 'victory' : 'gameover';
-        
-        // Calculate stars
-        const accuracy = this.correctCount / Math.max(this.correctCount + this.wrongCount, 1);
-        const progress = this.rocket.altitude / this.rocket.targetAltitude;
+
+        // Calculate stars based on CUMULATIVE WAVES (matching asteroid defense)
+        // This is checked on game over, whether victory or defeat
         let stars = 0;
-        
-        if (victory) {
-            const timeBonus = 1 - (this.timeElapsed / this.levelDuration);
-            if (accuracy >= 0.95 && timeBonus >= 0.3) stars = 3;
-            else if (accuracy >= 0.80 && timeBonus >= 0.1) stars = 2;
-            else stars = 1;
-        } else {
-            // Partial stars for progress
-            if (progress >= 0.75) stars = 1;
+
+        // Wave-based star system (matching asteroid defense)
+        if (this.currentWave >= 10) {
+            stars = 3;
+        } else if (this.currentWave >= 6) {
+            stars = 2;
+        } else if (this.currentWave >= 3) {
+            stars = 1;
         }
-        
-        // Stop warning alarm
-        AudioManager.stopWarningAlarm();
-        this.warningAlarmActive = false;
-        
+
+        // Player can get stars even if they died, as long as they reached enough waves
+        if (stars > 0 && !victory) {
+            // Override to partial victory if they earned stars
+            victory = true;
+            this.state = 'victory';
+        }
+
         // Effects
         if (victory) {
             AudioManager.playLevelComplete();
             this.particles.confetti(0, 0, this.canvas.width, { count: 150 });
-            
-            // Moon landing effects
-            this.particles.explosion(this.rocket.x, this.rocket.y, {
+
+            this.particles.explosion(this.player.x + this.player.width / 2, this.player.y, {
                 count: 50,
                 colors: ['#ffd700', '#ffffff', '#00ffff'],
                 speed: 200,
@@ -633,24 +836,20 @@ class RocketLaunchLevel {
             });
         } else {
             AudioManager.playGameOver();
-            
-            // Crash effects if fell
-            if (this.rocket.isFalling) {
-                // Play rocket exploding sound
-                AudioManager.playRocketExploding();
-                
-                this.particles.explosion(this.rocket.x, this.rocket.y, {
-                    count: 60,
-                    colors: ['#ff4444', '#ff8844', '#ffcc00'],
-                    speed: 300,
-                    size: 12,
-                    life: 1
-                });
-                this.game.screenShake.start(20, 500);
-            }
+            AudioManager.playRocketExploding();
+
+            this.particles.explosion(this.player.x + this.player.width / 2, this.player.y + this.player.height / 2, {
+                count: 60,
+                colors: ['#ff4444', '#ff8844', '#ffcc00'],
+                speed: 300,
+                size: 12,
+                life: 1
+            });
+            this.game.screenShake.start(20, 500);
         }
-        
+
         // Update player stats
+        const accuracy = this.correctCount / Math.max(this.correctCount + this.wrongCount, 1);
         const wpm = (this.correctCount / Math.max(this.timeElapsed / 60, 1)) * 5;
         this.game.player.updateSkill(accuracy, wpm, this.correctCount + this.wrongCount);
         this.game.player.recordGameCompletion(
@@ -660,7 +859,7 @@ class RocketLaunchLevel {
             this.timeElapsed,
             victory
         );
-        
+
         // Show result screen
         setTimeout(() => {
             this.game.showResultScreen({
@@ -669,650 +868,440 @@ class RocketLaunchLevel {
                 stars: stars,
                 accuracy: Math.round(accuracy * 100),
                 maxCombo: this.maxCombo,
-                altitude: Math.round(this.rocket.altitude),
-                targetAltitude: this.rocket.targetAltitude,
+                wavesCompleted: this.currentWave - (this.isWaveTransitioning ? 0 : 1),
                 timeElapsed: this.timeElapsed
             });
         }, victory ? 2000 : 1000);
     }
-    
+
     draw(ctx) {
-        // Draw sky gradient based on stage
-        this.drawBackground(ctx);
-        
-        // Draw stars (only visible in atmosphere and space)
-        if (this.stage !== 'launchpad') {
-            const starOpacity = this.stage === 'atmosphere' ? 0.3 : 1;
-            ctx.save();
-            ctx.globalAlpha = starOpacity;
-            this.stars.forEach(star => {
-                const twinkle = 0.5 + 0.5 * Math.sin(star.twinkle);
-                ctx.fillStyle = `rgba(255, 255, 255, ${twinkle})`;
-                ctx.beginPath();
-                ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
-                ctx.fill();
-            });
-            ctx.restore();
+        // Draw background
+        this.background.draw(ctx, this.groundY);
+
+        // Draw obstacles
+        this.obstacleManager.draw(ctx, this.groundY);
+
+        // Draw wave finish flag
+        if (this.waveFlag) {
+            this.drawWaveFlag(ctx);
         }
-        
-        // Draw moon
-        if (this.moon.visible) {
-            this.drawMoon(ctx);
-        }
-        
-        // Draw clouds (only in atmosphere)
-        if (this.stage === 'launchpad' || this.stage === 'atmosphere') {
-            this.drawClouds(ctx);
-        }
-        
-        // Draw launch pad (only at start)
-        if (this.stage === 'launchpad' && this.stageProgress < 0.1) {
-            this.drawLaunchPad(ctx);
-        }
-        
-        // Draw rocket
-        this.drawRocket(ctx);
-        
-        // Draw UI elements
-        this.drawLetterUI(ctx);
-        this.drawFuelGauge(ctx);
-        this.drawAltitudeMeter(ctx);
-        this.drawBoostMeter(ctx);
-        this.drawVelocityIndicator(ctx);
-        
-        // Draw word progress if using word mode
-        if (this.useWordMode && this.currentWord) {
-            this.drawWordProgress(ctx);
-        }
-        
-        // Draw falling warning
-        if (this.rocket.isFalling) {
-            this.drawFallingWarning(ctx);
-        }
+
+        // Draw projectiles
+        this.projectileManager.draw(ctx);
+
+        // Draw player
+        this.player.draw(ctx);
+
+        // Draw UI
+        this.drawUI(ctx);
+
+        // Draw notifications
+        this.drawNotifications(ctx);
+
+        // Draw current letter/word hint
+        this.drawLetterHint(ctx);
     }
-    
-    drawWordProgress(ctx) {
-        const centerX = this.canvas.width / 2;
-        const y = 180;
-        
+
+    drawWaveFlag(ctx) {
+        const flag = this.waveFlag;
+        const x = flag.x;
+        const y = flag.y;
+
         ctx.save();
-        ctx.font = 'bold 14px "Exo 2", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-        ctx.fillText('WORD:', centerX - 70, y);
-        
-        // Draw the word with typed/untyped highlighting
-        let x = centerX - 30;
-        for (let i = 0; i < this.currentWord.length; i++) {
-            const letter = this.currentWord[i];
-            if (i < this.currentWordIndex) {
-                ctx.fillStyle = '#44ff88'; // Typed - green
-            } else if (i === this.currentWordIndex) {
-                ctx.fillStyle = '#ffd700'; // Current - gold
-                ctx.shadowColor = '#ffd700';
-                ctx.shadowBlur = 10;
-            } else {
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.4)'; // Upcoming - dim
-                ctx.shadowBlur = 0;
+
+        // Flag pole
+        ctx.fillStyle = '#8B4513';
+        ctx.fillRect(x, y, 8, 120);
+
+        // Pole top ornament
+        ctx.fillStyle = '#FFD700';
+        ctx.beginPath();
+        ctx.arc(x + 4, y - 5, 10, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Checkered flag (waving)
+        const flagWidth = 80;
+        const flagHeight = 50;
+        const waveAmount = Math.sin(flag.wavePhase) * 5;
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(x + 10, y + 5 + waveAmount, flagWidth, flagHeight);
+
+        // Draw checkered pattern
+        const squareSize = 10;
+        for (let row = 0; row < 5; row++) {
+            for (let col = 0; col < 8; col++) {
+                if ((row + col) % 2 === 0) {
+                    ctx.fillStyle = '#000000';
+                    const offsetY = Math.sin(flag.wavePhase + col * 0.3) * 3;
+                    ctx.fillRect(
+                        x + 10 + col * squareSize,
+                        y + 5 + row * squareSize + waveAmount + offsetY,
+                        squareSize,
+                        squareSize
+                    );
+                }
             }
-            ctx.font = i === this.currentWordIndex ? 'bold 20px "Arial Black", sans-serif' : 'bold 16px "Exo 2", sans-serif';
-            ctx.fillText(letter, x, y);
-            x += 22;
-            ctx.shadowBlur = 0;
         }
-        
+
+        // "FINISH" text
+        ctx.font = 'bold 16px "Orbitron", sans-serif';
+        ctx.fillStyle = '#FFD700';
+        ctx.textAlign = 'center';
+        ctx.shadowColor = '#000000';
+        ctx.shadowBlur = 5;
+        ctx.fillText('FINISH', x + 50, y + flagHeight + 25 + waveAmount);
+
         ctx.restore();
     }
-    
-    drawVelocityIndicator(ctx) {
-        const x = 70;
+
+    drawUI(ctx) {
+        // Health bar (top-left)
+        this.drawHealthBar(ctx);
+
+        // Score (top-right, moved to prevent overlap)
+        this.drawScore(ctx);
+
+        // Wave progress
+        this.drawWaveProgress(ctx);
+
+        // Combo display
+        if (this.combo > 0) {
+            this.drawCombo(ctx);
+        }
+
+        // Power-up indicators
+        this.drawPowerUpIndicators(ctx);
+
+        // Speed indicator
+        this.drawSpeedIndicator(ctx);
+    }
+
+    drawHealthBar(ctx) {
+        const x = 20;
         const y = 30;
-        
+        const heartSize = 40; // Much bigger hearts!
+        const spacing = 45;
+
+        ctx.save();
+
+        // Track health changes for pulse animation
+        if (this.lastHealth !== undefined && this.lastHealth !== this.player.health) {
+            this.healthPulseTime = 0.5; // Start pulse animation for 0.5 seconds
+            this.healthPulseDirection = this.player.health > this.lastHealth ? 'up' : 'down';
+        }
+        this.lastHealth = this.player.health;
+
+        // Update pulse timer
+        if (this.healthPulseTime > 0) {
+            this.healthPulseTime -= 0.016; // Approximate frame time
+        }
+
+        for (let i = 0; i < this.player.config.MAX_HEALTH; i++) {
+            const heartX = x + i * spacing;
+
+            // Calculate pulse scale
+            let scale = 1;
+            if (this.healthPulseTime > 0) {
+                const pulse = Math.sin(this.healthPulseTime * 20) * 0.15;
+                scale = 1 + pulse;
+            }
+
+            const scaledSize = heartSize * scale;
+            const offsetX = (scaledSize - heartSize) / 2;
+            const offsetY = (scaledSize - heartSize) / 2;
+
+            ctx.font = `${scaledSize}px Arial`;
+
+            if (i < this.player.health) {
+                ctx.fillStyle = '#ff4444';
+                ctx.shadowColor = this.healthPulseDirection === 'up' ? '#44ff88' : '#ff4444';
+                ctx.shadowBlur = 15 + (this.healthPulseTime > 0 ? 15 : 0);
+                ctx.fillText('❤️', heartX - offsetX, y + heartSize + offsetY);
+            } else {
+                ctx.fillStyle = '#444444';
+                ctx.shadowBlur = 0;
+                ctx.font = `${heartSize}px Arial`; // No pulse for empty hearts
+                ctx.fillText('🖤', heartX, y + heartSize);
+            }
+        }
+
+        ctx.restore();
+    }
+
+    drawScore(ctx) {
+        // Score in bottom-right corner to avoid overlap with health
+        const x = this.canvas.width - 20;
+        const y = this.canvas.height - 60;
+
+        ctx.save();
+        ctx.font = 'bold 20px "Orbitron", sans-serif';
+        ctx.fillStyle = '#ffd700';
+        ctx.textAlign = 'right';
+        ctx.shadowColor = '#ffd700';
+        ctx.shadowBlur = 8;
+        ctx.fillText(`SCORE: ${this.score.toLocaleString()}`, x, y);
+        ctx.restore();
+    }
+
+    drawWaveProgress(ctx) {
+        const x = this.canvas.width - 150;
+        const y = 25;
+        const width = 130;
+        const height = 12;
+
+        ctx.save();
+
+        // Label
+        ctx.font = 'bold 12px "Orbitron", sans-serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'right';
+        ctx.fillText(`WAVE ${this.currentWave}`, x + width, y - 5);
+
+        // Background bar
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+        ctx.beginPath();
+        ctx.roundRect(x, y, width, height, 4);
+        ctx.fill();
+
+        // Progress
+        const progress = this.waveTimeElapsed / this.waveDuration;
+        const gradient = ctx.createLinearGradient(x, y, x + width * progress, y);
+        gradient.addColorStop(0, '#4488ff');
+        gradient.addColorStop(1, '#00ffff');
+
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.roundRect(x, y, width * progress, height, 4);
+        ctx.fill();
+
+        ctx.restore();
+    }
+
+    drawCombo(ctx) {
+        // Combo in bottom-left (score is bottom-right)
+        const x = 150;
+        const y = this.canvas.height - 80;
+
+        ctx.save();
+
+        const scale = 1 + Math.min(0.3, this.combo * 0.015);
+        ctx.translate(x, y);
+        ctx.scale(scale, scale);
+
+        // Glow effect for high combos
+        if (this.combo >= 5) {
+            ctx.shadowColor = '#ffd700';
+            ctx.shadowBlur = 15;
+        }
+
+        ctx.font = 'bold 22px "Orbitron", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = this.combo >= 5 ? '#ffd700' : '#ffffff';
+        ctx.fillText(`${this.combo}x COMBO`, 0, 0);
+
+        // Multiplier
+        const multiplier = this.getComboMultiplier();
+        if (multiplier > 1) {
+            ctx.font = 'bold 12px "Orbitron", sans-serif';
+            ctx.fillStyle = '#44ff88';
+            ctx.fillText(`${multiplier.toFixed(1)}x SCORE`, 0, 16);
+        }
+
+        ctx.restore();
+    }
+
+    drawPowerUpIndicators(ctx) {
+        const x = 20;
+        let y = 85; // Below the enlarged health bar
+
         ctx.save();
         ctx.font = 'bold 14px "Orbitron", sans-serif';
         ctx.textAlign = 'left';
-        
-        // Color based on velocity state
-        let velocityColor = '#ffffff';
-        let velocityText = `${Math.round(this.rocket.velocity)} m/s`;
-        
-        if (this.rocket.velocity < 0) {
-            velocityColor = '#ff4444';
-            velocityText = `${Math.round(this.rocket.velocity)} m/s ⬇️`;
-        } else if (this.rocket.velocity > this.rocket.maxVelocity * 0.8) {
-            velocityColor = '#44ff88';
-            velocityText = `${Math.round(this.rocket.velocity)} m/s 🚀`;
-        } else if (this.rocket.fuel <= 0 && this.rocket.velocity > 0) {
-            velocityColor = '#ffcc00';
-            velocityText = `${Math.round(this.rocket.velocity)} m/s ⚠️`;
-        }
-        
-        ctx.fillStyle = velocityColor;
-        ctx.fillText(`VELOCITY: ${velocityText}`, x, y);
-        ctx.restore();
-    }
-    
-    drawFallingWarning(ctx) {
-        const time = Date.now();
-        
-        // Flashing warning overlay - more intense when closer to ground
-        const dangerLevel = 1 - Math.min(1, this.rocket.altitude / 200);
-        const alpha = (0.15 + 0.15 * Math.sin(time / 80)) * (0.5 + dangerLevel * 0.5);
-        
-        ctx.save();
-        ctx.globalAlpha = alpha;
-        ctx.fillStyle = '#ff0000';
-        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-        ctx.restore();
-        
-        // Warning border flash
-        ctx.save();
-        ctx.globalAlpha = 0.5 + 0.5 * Math.sin(time / 100);
-        ctx.strokeStyle = '#ff4444';
-        ctx.lineWidth = 10;
-        ctx.strokeRect(5, 5, this.canvas.width - 10, this.canvas.height - 10);
-        ctx.restore();
-        
-        // Main warning text - pulsing
-        ctx.save();
-        const textPulse = 1 + 0.1 * Math.sin(time / 100);
-        ctx.font = `bold ${Math.round(32 * textPulse)}px "Orbitron", sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.fillStyle = '#ff4444';
-        ctx.shadowColor = '#ff0000';
-        ctx.shadowBlur = 30;
-        ctx.fillText('⚠️ FALLING! TYPE TO ADD FUEL! ⚠️', this.canvas.width / 2, 60);
-        
-        // Additional altitude warning when critical
-        if (this.rocket.altitude < 100) {
-            ctx.font = 'bold 24px "Orbitron", sans-serif';
+
+        // Show current active weapon (no timer since weapons are combo-based)
+        if (this.powerUps.spreadShot.active) {
             ctx.fillStyle = '#ffcc00';
-            ctx.shadowColor = '#ff8800';
-            ctx.fillText(`ALTITUDE: ${Math.round(this.rocket.altitude)}m - CRASH IMMINENT!`, this.canvas.width / 2, 95);
+            ctx.shadowColor = '#ffcc00';
+            ctx.shadowBlur = 10;
+            ctx.fillText('🔥 SPREAD SHOT ACTIVE', x, y);
+        } else if (this.powerUps.explosive.active) {
+            ctx.fillStyle = '#ff6644';
+            ctx.shadowColor = '#ff6644';
+            ctx.shadowBlur = 10;
+            ctx.fillText('💥 EXPLOSIVE ACTIVE', x, y);
+        } else if (this.powerUps.rapidFire.active) {
+            ctx.fillStyle = '#44ff88';
+            ctx.shadowColor = '#44ff88';
+            ctx.shadowBlur = 10;
+            ctx.fillText('⚡ RAPID FIRE ACTIVE', x, y);
         }
-        
-        // Down arrow indicators on sides
-        ctx.globalAlpha = 0.5 + 0.5 * Math.sin(time / 150);
-        ctx.fillStyle = '#ff4444';
-        ctx.font = 'bold 40px sans-serif';
-        ctx.fillText('⬇', 50, this.canvas.height / 2);
-        ctx.fillText('⬇', this.canvas.width - 50, this.canvas.height / 2);
-        
+
         ctx.restore();
     }
-    
-    drawBackground(ctx) {
-        let gradient;
-        
-        switch (this.stage) {
-            case 'launchpad':
-                gradient = ctx.createLinearGradient(0, 0, 0, this.canvas.height);
-                gradient.addColorStop(0, '#1a1a4e');
-                gradient.addColorStop(0.5, '#2d2d6e');
-                gradient.addColorStop(1, '#4a4a8e');
-                break;
-            case 'atmosphere':
-                gradient = ctx.createLinearGradient(0, 0, 0, this.canvas.height);
-                gradient.addColorStop(0, '#0a0a2e');
-                gradient.addColorStop(0.5, '#1a1a4e');
-                gradient.addColorStop(1, '#3a3a6e');
-                break;
-            case 'space':
-            case 'moon':
-                gradient = ctx.createLinearGradient(0, 0, 0, this.canvas.height);
-                gradient.addColorStop(0, '#050510');
-                gradient.addColorStop(1, '#0a0a1a');
-                break;
-        }
-        
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-    }
-    
-    drawMoon(ctx) {
+
+    drawSpeedIndicator(ctx) {
+        const x = 20;
+        const y = this.canvas.height - 30;
+
         ctx.save();
-        
-        // Moon glow
-        const glowGradient = ctx.createRadialGradient(
-            this.moon.x, this.moon.y, this.moon.radius * 0.5,
-            this.moon.x, this.moon.y, this.moon.radius * 2
-        );
-        glowGradient.addColorStop(0, 'rgba(255, 255, 200, 0.3)');
-        glowGradient.addColorStop(1, 'transparent');
-        ctx.fillStyle = glowGradient;
-        ctx.beginPath();
-        ctx.arc(this.moon.x, this.moon.y, this.moon.radius * 2, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // Moon surface
-        const moonGradient = ctx.createRadialGradient(
-            this.moon.x - this.moon.radius * 0.3,
-            this.moon.y - this.moon.radius * 0.3,
-            0,
-            this.moon.x,
-            this.moon.y,
-            this.moon.radius
-        );
-        moonGradient.addColorStop(0, '#f5f5dc');
-        moonGradient.addColorStop(1, '#c0c0a0');
-        
-        ctx.fillStyle = moonGradient;
-        ctx.beginPath();
-        ctx.arc(this.moon.x, this.moon.y, this.moon.radius, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // Craters
-        ctx.fillStyle = 'rgba(100, 100, 80, 0.3)';
-        const craters = [
-            { x: -20, y: -10, r: 15 },
-            { x: 25, y: 20, r: 20 },
-            { x: -30, y: 25, r: 12 },
-            { x: 10, y: -25, r: 10 },
-            { x: -10, y: 35, r: 8 }
-        ];
-        craters.forEach(crater => {
-            ctx.beginPath();
-            ctx.arc(this.moon.x + crater.x, this.moon.y + crater.y, crater.r, 0, Math.PI * 2);
-            ctx.fill();
-        });
-        
-        ctx.restore();
-    }
-    
-    drawClouds(ctx) {
-        ctx.save();
-        this.clouds.forEach(cloud => {
-            ctx.globalAlpha = cloud.opacity;
-            
-            const gradient = ctx.createRadialGradient(
-                cloud.x, cloud.y, 0,
-                cloud.x, cloud.y, cloud.width / 2
-            );
-            gradient.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
-            gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-            
-            ctx.fillStyle = gradient;
-            ctx.beginPath();
-            ctx.ellipse(cloud.x, cloud.y, cloud.width / 2, cloud.height / 2, 0, 0, Math.PI * 2);
-            ctx.fill();
-        });
-        ctx.restore();
-    }
-    
-    drawLaunchPad(ctx) {
-        const pad = this.launchPad;
-        
-        // Platform
-        ctx.fillStyle = '#444';
-        ctx.fillRect(pad.x - pad.width / 2, pad.y, pad.width, pad.height);
-        
-        // Support structure
-        ctx.strokeStyle = '#666';
-        ctx.lineWidth = 8;
-        ctx.beginPath();
-        ctx.moveTo(pad.x - pad.width / 2, pad.y + pad.height);
-        ctx.lineTo(pad.x - pad.width / 2 - 20, this.canvas.height);
-        ctx.moveTo(pad.x + pad.width / 2, pad.y + pad.height);
-        ctx.lineTo(pad.x + pad.width / 2 + 20, this.canvas.height);
-        ctx.stroke();
-        
-        // Warning lights
-        const blink = Math.sin(Date.now() / 200) > 0;
-        ctx.fillStyle = blink ? '#ff0000' : '#880000';
-        ctx.beginPath();
-        ctx.arc(pad.x - pad.width / 2 - 10, pad.y + 10, 5, 0, Math.PI * 2);
-        ctx.arc(pad.x + pad.width / 2 + 10, pad.y + 10, 5, 0, Math.PI * 2);
-        ctx.fill();
-    }
-    
-    drawRocket(ctx) {
-        ctx.save();
-        ctx.translate(
-            this.rocket.x + Utils.random(-this.rocket.shake, this.rocket.shake),
-            this.rocket.y + Utils.random(-this.rocket.shake, this.rocket.shake)
-        );
-        ctx.rotate(this.rocket.tilt);
-        
-        const w = this.rocket.width;
-        const h = this.rocket.height;
-        
-        // Rocket body
-        const bodyGradient = ctx.createLinearGradient(-w/2, 0, w/2, 0);
-        bodyGradient.addColorStop(0, '#888');
-        bodyGradient.addColorStop(0.3, '#fff');
-        bodyGradient.addColorStop(0.7, '#fff');
-        bodyGradient.addColorStop(1, '#888');
-        
-        ctx.fillStyle = bodyGradient;
-        ctx.beginPath();
-        ctx.moveTo(0, -h/2);
-        ctx.quadraticCurveTo(w/2, -h/3, w/2, h/4);
-        ctx.lineTo(w/2, h/2 - 10);
-        ctx.lineTo(-w/2, h/2 - 10);
-        ctx.lineTo(-w/2, h/4);
-        ctx.quadraticCurveTo(-w/2, -h/3, 0, -h/2);
-        ctx.closePath();
-        ctx.fill();
-        
-        // Red stripes
-        ctx.fillStyle = '#cc0000';
-        ctx.fillRect(-w/2 + 5, -h/4, w - 10, 15);
-        ctx.fillRect(-w/2 + 5, 0, w - 10, 15);
-        
-        // Window
-        ctx.fillStyle = '#00aaff';
-        ctx.beginPath();
-        ctx.ellipse(0, -h/4 + 30, 12, 15, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = '#666';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        
-        // Window reflection
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-        ctx.beginPath();
-        ctx.ellipse(-4, -h/4 + 26, 4, 6, -0.3, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // Fins
-        ctx.fillStyle = '#cc0000';
-        // Left fin
-        ctx.beginPath();
-        ctx.moveTo(-w/2, h/3);
-        ctx.lineTo(-w/2 - 20, h/2 + 10);
-        ctx.lineTo(-w/2, h/2 - 10);
-        ctx.closePath();
-        ctx.fill();
-        // Right fin
-        ctx.beginPath();
-        ctx.moveTo(w/2, h/3);
-        ctx.lineTo(w/2 + 20, h/2 + 10);
-        ctx.lineTo(w/2, h/2 - 10);
-        ctx.closePath();
-        ctx.fill();
-        
-        // Engine nozzle
-        ctx.fillStyle = '#444';
-        ctx.beginPath();
-        ctx.moveTo(-w/3, h/2 - 10);
-        ctx.lineTo(-w/4, h/2 + 5);
-        ctx.lineTo(w/4, h/2 + 5);
-        ctx.lineTo(w/3, h/2 - 10);
-        ctx.closePath();
-        ctx.fill();
-        
-        // Engine flame (if fuel > 0)
-        if (this.rocket.fuel > 0 && this.rocket.enginePower > 0.05) {
-            const flameHeight = 30 + this.rocket.enginePower * 50;
-            const flameWidth = 15 + this.rocket.enginePower * 10;
-            
-            // Outer flame (red/orange)
-            const outerFlameGradient = ctx.createLinearGradient(0, h/2, 0, h/2 + flameHeight);
-            outerFlameGradient.addColorStop(0, this.boostActive ? '#00ffff' : '#ff6600');
-            outerFlameGradient.addColorStop(0.5, this.boostActive ? '#00ff88' : '#ffcc00');
-            outerFlameGradient.addColorStop(1, 'transparent');
-            
-            ctx.fillStyle = outerFlameGradient;
-            ctx.beginPath();
-            ctx.moveTo(-flameWidth, h/2 + 5);
-            ctx.quadraticCurveTo(0, h/2 + flameHeight, flameWidth, h/2 + 5);
-            ctx.closePath();
-            ctx.fill();
-            
-            // Inner flame (white/yellow)
-            const innerFlameGradient = ctx.createLinearGradient(0, h/2, 0, h/2 + flameHeight * 0.6);
-            innerFlameGradient.addColorStop(0, '#ffffff');
-            innerFlameGradient.addColorStop(1, 'transparent');
-            
-            ctx.fillStyle = innerFlameGradient;
-            ctx.beginPath();
-            ctx.moveTo(-flameWidth * 0.5, h/2 + 5);
-            ctx.quadraticCurveTo(0, h/2 + flameHeight * 0.6, flameWidth * 0.5, h/2 + 5);
-            ctx.closePath();
-            ctx.fill();
-        }
-        
-        ctx.restore();
-    }
-    
-    drawLetterUI(ctx) {
-        const centerX = this.canvas.width / 2;
-        const y = 120;
-        
-        // Current letter (large, centered)
-        ctx.save();
-        
-        // Letter timer progress (ring around letter)
-        const timerProgress = 1 - (Date.now() - this.letterTimer) / this.letterTimeout;
-        if (timerProgress > 0) {
-            ctx.beginPath();
-            ctx.arc(centerX, y, 55, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * timerProgress);
-            ctx.strokeStyle = timerProgress > 0.3 ? '#00ffff' : '#ff4444';
-            ctx.lineWidth = 4;
-            ctx.stroke();
-        }
-        
-        // Letter background
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        ctx.beginPath();
-        ctx.arc(centerX, y, 50, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // Letter glow
-        const glowGradient = ctx.createRadialGradient(centerX, y, 30, centerX, y, 60);
-        glowGradient.addColorStop(0, 'rgba(0, 255, 255, 0.3)');
-        glowGradient.addColorStop(1, 'transparent');
-        ctx.fillStyle = glowGradient;
-        ctx.beginPath();
-        ctx.arc(centerX, y, 60, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // Current letter - improved font
-        const displayLetter = this.useWordMode && this.currentWord 
-            ? this.currentWord[this.currentWordIndex]
-            : this.currentLetter;
-        
-        ctx.fillStyle = '#00ffff';
-        ctx.font = 'bold 48px "Arial Black", Impact, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.shadowColor = '#00ffff';
-        ctx.shadowBlur = 15;
-        ctx.fillText(displayLetter, centerX, y);
-        
-        // Next letters (smaller, in a row) - only for non-word mode
-        if (!this.useWordMode || !this.currentWord) {
-            ctx.shadowBlur = 0;
-            ctx.font = 'bold 24px "Orbitron", sans-serif';
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-            
-            for (let i = 0; i < Math.min(3, this.nextLetters.length); i++) {
-                const alpha = 0.5 - i * 0.15;
-                ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
-                ctx.fillText(this.nextLetters[i], centerX + 80 + i * 40, y);
-            }
-        }
-        
-        ctx.restore();
-    }
-    
-    drawFuelGauge(ctx) {
-        const x = 30;
-        const y = this.canvas.height / 2 - 100;
-        const width = 30;
-        const height = 200;
-        
-        // Background
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillRect(x - 2, y - 2, width + 4, height + 4);
-        
-        // Gauge background
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-        ctx.fillRect(x, y, width, height);
-        
-        // Fuel level
-        const fuelPercent = this.rocket.fuel / this.rocket.maxFuel;
-        const fuelHeight = height * fuelPercent;
-        
-        const fuelGradient = ctx.createLinearGradient(x, y + height - fuelHeight, x, y + height);
-        if (fuelPercent > 0.5) {
-            fuelGradient.addColorStop(0, '#44ff88');
-            fuelGradient.addColorStop(1, '#00aa44');
-        } else if (fuelPercent > 0.25) {
-            fuelGradient.addColorStop(0, '#ffcc00');
-            fuelGradient.addColorStop(1, '#ff8800');
-        } else {
-            fuelGradient.addColorStop(0, '#ff4444');
-            fuelGradient.addColorStop(1, '#aa0000');
-        }
-        
-        ctx.fillStyle = fuelGradient;
-        ctx.fillRect(x, y + height - fuelHeight, width, fuelHeight);
-        
-        // Border
-        ctx.strokeStyle = 'rgba(100, 150, 255, 0.5)';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(x, y, width, height);
-        
-        // Label
-        ctx.fillStyle = '#ffffff';
         ctx.font = '12px "Orbitron", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.save();
-        ctx.translate(x + width / 2, y - 15);
-        ctx.fillText('FUEL', 0, 0);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.textAlign = 'left';
+        ctx.fillText(`SPEED: ${Math.round(this.gameSpeed)}`, x, y);
         ctx.restore();
-        
-        // Percentage
-        ctx.fillText(`${Math.round(fuelPercent * 100)}%`, x + width / 2, y + height + 20);
-        
-        // Warning indicator when low
-        if (fuelPercent < 0.25 && fuelPercent > 0) {
-            const warningAlpha = 0.5 + 0.5 * Math.sin(Date.now() / 100);
-            ctx.save();
-            ctx.globalAlpha = warningAlpha;
-            ctx.strokeStyle = '#ff4444';
-            ctx.lineWidth = 3;
-            ctx.strokeRect(x - 3, y - 3, width + 6, height + 6);
-            ctx.restore();
-        }
     }
-    
-    drawAltitudeMeter(ctx) {
-        const x = this.canvas.width - 60;
-        const y = this.canvas.height / 2 - 100;
-        const width = 30;
-        const height = 200;
-        
-        // Background
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillRect(x - 2, y - 2, width + 4, height + 4);
-        
-        // Meter background
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-        ctx.fillRect(x, y, width, height);
-        
-        // Altitude markers
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-        ctx.lineWidth = 1;
-        for (let i = 0; i <= 4; i++) {
-            const markerY = y + (height / 4) * i;
-            ctx.beginPath();
-            ctx.moveTo(x, markerY);
-            ctx.lineTo(x + width, markerY);
-            ctx.stroke();
-        }
-        
-        // Progress fill
-        const altitudePercent = Math.max(0, this.rocket.altitude / this.rocket.targetAltitude);
-        const altitudeHeight = height * Math.min(1, altitudePercent);
-        
-        const altGradient = ctx.createLinearGradient(x, y + height - altitudeHeight, x, y + height);
-        altGradient.addColorStop(0, '#00ffff');
-        altGradient.addColorStop(1, '#0088ff');
-        
-        ctx.fillStyle = altGradient;
-        ctx.fillRect(x, y + height - altitudeHeight, width, altitudeHeight);
-        
-        // Rocket marker
-        const markerY = y + height - altitudeHeight;
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.moveTo(x - 10, markerY);
-        ctx.lineTo(x, markerY - 5);
-        ctx.lineTo(x, markerY + 5);
-        ctx.closePath();
-        ctx.fill();
-        
-        // Border
-        ctx.strokeStyle = 'rgba(100, 150, 255, 0.5)';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(x, y, width, height);
-        
-        // Moon icon at top
-        ctx.fillStyle = '#ffd700';
-        ctx.font = '20px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('🌙', x + width / 2, y - 15);
-        
-        // Altitude text
-        ctx.fillStyle = '#ffffff';
-        ctx.font = '12px "Orbitron", sans-serif';
-        ctx.fillText(`${Math.round(altitudePercent * 100)}%`, x + width / 2, y + height + 20);
+
+    drawNotifications(ctx) {
+        ctx.save();
+
+        this.notifications.forEach(n => {
+            ctx.globalAlpha = n.alpha;
+            ctx.font = `bold ${Math.round(24 * n.scale)}px "Orbitron", sans-serif`;
+            ctx.textAlign = 'center';
+
+            // Text shadow
+            ctx.fillStyle = '#000000';
+            ctx.fillText(n.text, n.x + 2, n.y + 2);
+
+            // Main text
+            ctx.fillStyle = '#ffffff';
+            ctx.shadowColor = '#ffd700';
+            ctx.shadowBlur = 15;
+            ctx.fillText(n.text, n.x, n.y);
+        });
+
+        ctx.restore();
     }
-    
-    drawBoostMeter(ctx) {
-        if (this.boostMeter <= 0 && !this.boostActive) return;
-        
+
+    drawLetterHint(ctx) {
+        // If we have a locked elite, show the word progress
+        if (this.lockedElite && !this.lockedElite.isDestroyed) {
+            this.drawWordHint(ctx, this.lockedElite);
+            return;
+        }
+
+        if (!this.currentTargetObstacle) return;
+
+        const obstacle = this.currentTargetObstacle;
+        const distance = obstacle.x - this.player.x;
+
+        // Only show hint when obstacle is approaching
+        if (distance > 400 || distance < 0) return;
+
+        // If it's an elite, show word hint
+        if (obstacle.isElite) {
+            this.drawWordHint(ctx, obstacle);
+            return;
+        }
+
+        // Regular letter hint
+        const urgency = 1 - (distance / 400);
+
+        ctx.save();
+
         const x = this.canvas.width / 2;
-        const y = 220;
-        const width = 150;
-        const height = 10;
-        
+        const y = 150;
+
         // Background
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillRect(x - width / 2 - 2, y - 2, width + 4, height + 4);
-        
-        // Meter
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-        ctx.fillRect(x - width / 2, y, width, height);
-        
-        // Fill
-        const fillWidth = this.boostActive ? width : (width * this.boostMeter / 100);
-        const boostGradient = ctx.createLinearGradient(x - width / 2, y, x - width / 2 + fillWidth, y);
-        
-        if (this.boostActive) {
-            boostGradient.addColorStop(0, '#00ffff');
-            boostGradient.addColorStop(0.5, '#00ff88');
-            boostGradient.addColorStop(1, '#00ffff');
-        } else {
-            boostGradient.addColorStop(0, '#ff00ff');
-            boostGradient.addColorStop(1, '#ff88ff');
-        }
-        
-        ctx.fillStyle = boostGradient;
-        ctx.fillRect(x - width / 2, y, fillWidth, height);
-        
-        // Label
-        ctx.fillStyle = this.boostActive ? '#00ffff' : '#ff88ff';
+        const alpha = 0.6 + urgency * 0.3;
+        ctx.fillStyle = `rgba(0, 0, 0, ${alpha})`;
+        ctx.beginPath();
+        ctx.roundRect(x - 60, y - 25, 120, 50, 10);
+        ctx.fill();
+
+        // Border (color based on urgency)
+        const borderColor = urgency > 0.7 ? '#ff4444' : urgency > 0.4 ? '#ffcc00' : '#44ff88';
+        ctx.strokeStyle = borderColor;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // "Type:" label
         ctx.font = 'bold 12px "Orbitron", sans-serif';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
         ctx.textAlign = 'center';
-        ctx.fillText(this.boostActive ? '⚡ BOOST ACTIVE ⚡' : 'BOOST', x, y - 8);
+        ctx.fillText('SHOOT:', x, y - 5);
+
+        // Letter
+        ctx.font = 'bold 28px "Arial Black", sans-serif';
+        ctx.fillStyle = '#ffd700';
+        ctx.shadowColor = '#ffd700';
+        ctx.shadowBlur = 10 + urgency * 10;
+        ctx.fillText(obstacle.letter, x, y + 22);
+
+        ctx.restore();
     }
-    
+
+    drawWordHint(ctx, elite) {
+        const x = this.canvas.width / 2;
+        const y = 150;
+
+        ctx.save();
+
+        const wordWidth = elite.word.length * 20 + 40;
+
+        // Background
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        ctx.beginPath();
+        ctx.roundRect(x - wordWidth / 2, y - 30, wordWidth, 60, 10);
+        ctx.fill();
+
+        // Border (glowing when locked)
+        ctx.strokeStyle = '#ffcc00';
+        ctx.shadowColor = '#ffcc00';
+        ctx.shadowBlur = 10;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        // "TYPE WORD:" label
+        ctx.font = 'bold 12px "Orbitron", sans-serif';
+        ctx.fillStyle = '#ffcc00';
+        ctx.textAlign = 'center';
+        ctx.fillText('🎯 TYPE WORD:', x, y - 10);
+
+        // Draw word with progress
+        let letterX = x - (elite.word.length * 10) + 10;
+        for (let i = 0; i < elite.word.length; i++) {
+            const letter = elite.word[i];
+
+            if (i < elite.typedIndex) {
+                ctx.fillStyle = '#44ff88';
+            } else if (i === elite.typedIndex) {
+                ctx.fillStyle = '#ffd700';
+                ctx.shadowColor = '#ffd700';
+                ctx.shadowBlur = 10;
+            } else {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+                ctx.shadowBlur = 0;
+            }
+
+            ctx.font = i === elite.typedIndex ? 'bold 26px "Arial Black"' : 'bold 22px "Arial Black"';
+            ctx.textAlign = 'center';
+            ctx.fillText(letter, letterX, y + 18);
+
+            letterX += 20;
+            ctx.shadowBlur = 0;
+        }
+
+        ctx.restore();
+    }
+
+    // Required by main.js
     getHUD() {
         return {
+            skipGlobalHUD: true, // Level draws its own HUD, skip global one
             score: this.score,
             combo: this.combo,
-            accuracy: this.correctCount / Math.max(this.correctCount + this.wrongCount, 1),
-            fuel: this.rocket.fuel,
-            maxFuel: this.rocket.maxFuel,
-            altitude: this.rocket.altitude,
-            targetAltitude: this.rocket.targetAltitude,
-            timeRemaining: Math.max(0, this.levelDuration - this.timeElapsed)
+            timeRemaining: Math.max(0, this.waveDuration - this.waveTimeElapsed),
+            wave: this.currentWave,
+            health: this.player ? this.player.health : 0,
+            maxHealth: this.player ? this.player.config.MAX_HEALTH : 5
         };
     }
 }
 
-// Export
-window.RocketLaunchLevel = RocketLaunchLevel;
+// Make available globally
+if (typeof window !== 'undefined') {
+    window.RocketLaunchLevel = RocketLaunchLevel;
+}

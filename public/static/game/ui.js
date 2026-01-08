@@ -12,23 +12,23 @@ class GameUI {
         this.flashColor = null;
         this.flashAlpha = 0;
     }
-    
+
     // Clear current screen
     clear() {
         this.overlay.innerHTML = '';
         this.currentScreen = null;
     }
-    
+
     // Check if device is mobile in portrait mode
     checkMobilePortrait() {
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-                         (window.innerWidth <= 768);
+            (window.innerWidth <= 768);
         const isPortrait = window.innerHeight > window.innerWidth;
-        
+
         // Return true if we should show the warning
         return isMobile && isPortrait;
     }
-    
+
     // Show mobile warning modal
     showMobileWarning(onContinue) {
         this.overlay.innerHTML = `
@@ -53,13 +53,13 @@ class GameUI {
                 </div>
             </div>
         `;
-        
+
         document.getElementById('continue-anyway-btn').addEventListener('click', () => {
             AudioManager.playClick();
             if (onContinue) onContinue();
         });
     }
-    
+
     // Show welcome screen (first time)
     showWelcomeScreen() {
         // Check for mobile portrait mode
@@ -69,12 +69,12 @@ class GameUI {
         }
         this.showWelcomeScreenContent();
     }
-    
+
     // Actual welcome screen content
     showWelcomeScreenContent() {
         this.clear();
         this.currentScreen = 'welcome';
-        
+
         this.overlay.innerHTML = `
             <div class="welcome-screen">
                 <div class="game-logo">
@@ -97,20 +97,20 @@ class GameUI {
                 </div>
             </div>
         `;
-        
+
         const input = document.getElementById('player-name-input');
         const btn = document.getElementById('start-journey-btn');
-        
+
         // Focus input
         setTimeout(() => input.focus(), 100);
-        
+
         // Handle enter key
         input.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 this.handleNameSubmit();
             }
         });
-        
+
         btn.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -118,7 +118,7 @@ class GameUI {
             AudioManager.playClick();
             this.handleNameSubmit();
         });
-        
+
         // Also handle touch events for mobile
         btn.addEventListener('touchend', (e) => {
             e.preventDefault();
@@ -127,7 +127,7 @@ class GameUI {
             this.handleNameSubmit();
         });
     }
-    
+
     handleNameSubmit() {
         console.log('handleNameSubmit called');
         const input = document.getElementById('player-name-input');
@@ -137,37 +137,37 @@ class GameUI {
         }
         const name = input.value.trim();
         console.log('Name entered:', name);
-        
+
         if (name.length < 1) {
             input.classList.add('shake');
             setTimeout(() => input.classList.remove('shake'), 500);
             return;
         }
-        
+
         try {
             this.game.player.setName(name);
             console.log('Name set, showing skill assessment...');
-            
+
             // Play welcome voice on first signup!
             // "Welcome space cadet! Are you ready for your first adventure?"
             AudioManager.playWelcome();
-            
+
             this.showSkillAssessment();
         } catch (error) {
             console.error('Error in handleNameSubmit:', error);
         }
     }
-    
+
     // Show skill assessment screen
     showSkillAssessment() {
         this.clear();
         this.currentScreen = 'assessment';
-        
+
         const letters = 'ASDFGHJKL'.split('');
-        const lettersHtml = letters.map((l, i) => 
+        const lettersHtml = letters.map((l, i) =>
             `<div class="assessment-letter" data-index="${i}">${l}</div>`
         ).join('');
-        
+
         this.overlay.innerHTML = `
             <div class="skill-assessment">
                 <div class="assessment-container">
@@ -196,7 +196,7 @@ class GameUI {
                 </div>
             </div>
         `;
-        
+
         // Assessment state
         this.assessmentState = {
             letters: letters,
@@ -206,30 +206,30 @@ class GameUI {
             wrong: 0,
             started: false
         };
-        
+
         // Highlight first letter
         this.updateAssessmentUI();
-        
+
         // Add keyboard listener
         this.assessmentHandler = (e) => this.handleAssessmentKey(e);
         document.addEventListener('keydown', this.assessmentHandler);
     }
-    
+
     handleAssessmentKey(e) {
         if (!this.assessmentState) return;
-        
+
         const key = e.key.toUpperCase();
         const state = this.assessmentState;
-        
+
         // Start timer on first keypress
         if (!state.started) {
             state.started = true;
             state.startTime = Date.now();
         }
-        
+
         const expectedLetter = state.letters[state.currentIndex];
         const letterEl = document.querySelector(`.assessment-letter[data-index="${state.currentIndex}"]`);
-        
+
         if (key === expectedLetter) {
             state.correct++;
             letterEl.classList.add('typed');
@@ -243,13 +243,13 @@ class GameUI {
         } else {
             return; // Ignore non-letter keys
         }
-        
+
         state.currentIndex++;
-        
+
         // Update progress
         const progress = (state.currentIndex / state.letters.length) * 100;
         document.getElementById('assessment-progress').style.width = `${progress}%`;
-        
+
         // Check if complete
         if (state.currentIndex >= state.letters.length) {
             this.completeAssessment();
@@ -257,11 +257,11 @@ class GameUI {
             this.updateAssessmentUI();
         }
     }
-    
+
     updateAssessmentUI() {
         const state = this.assessmentState;
         const letters = document.querySelectorAll('.assessment-letter');
-        
+
         letters.forEach((el, i) => {
             el.classList.remove('current');
             if (i === state.currentIndex) {
@@ -269,18 +269,18 @@ class GameUI {
             }
         });
     }
-    
+
     completeAssessment() {
         document.removeEventListener('keydown', this.assessmentHandler);
-        
+
         const state = this.assessmentState;
         const totalTime = (Date.now() - state.startTime) / 1000;
         const accuracy = state.correct / state.letters.length;
         const wpm = (state.letters.length / totalTime) * 60 / 5; // Approximate WPM
-        
+
         // Save assessment results
         this.game.player.completeAssessment(accuracy, wpm);
-        
+
         // Show brief result
         const container = document.querySelector('.assessment-container');
         container.innerHTML = `
@@ -294,15 +294,15 @@ class GameUI {
             </div>
             <button class="cosmic-btn primary" id="continue-btn">CONTINUE</button>
         `;
-        
+
         document.getElementById('continue-btn').addEventListener('click', () => {
             AudioManager.playClick();
             this.showMainMenu();
         });
-        
+
         this.assessmentState = null;
     }
-    
+
     // Show main menu
     showMainMenu() {
         // Check for mobile portrait mode (only first time in session)
@@ -313,14 +313,14 @@ class GameUI {
         }
         this.showMainMenuContent();
     }
-    
+
     // Actual main menu content
     showMainMenuContent() {
         this.clear();
         this.currentScreen = 'mainMenu';
-        
+
         const stats = this.game.player.getStats();
-        
+
         this.overlay.innerHTML = `
             <div class="main-menu">
                 <div class="game-logo" style="margin-bottom: 20px;">
@@ -362,28 +362,28 @@ class GameUI {
                 </div>
             </div>
         `;
-        
+
         document.getElementById('play-btn').addEventListener('click', () => {
             AudioManager.playClick();
             this.showLevelSelect();
         });
-        
+
         document.getElementById('settings-btn').addEventListener('click', () => {
             AudioManager.playClick();
             this.showSettings();
         });
-        
+
         document.getElementById('achievements-btn').addEventListener('click', () => {
             AudioManager.playClick();
             this.showAchievements();
         });
     }
-    
+
     // Show level selection
     showLevelSelect() {
         this.clear();
         this.currentScreen = 'levelSelect';
-        
+
         const levels = [
             {
                 id: 'asteroid-defense',
@@ -394,9 +394,9 @@ class GameUI {
             },
             {
                 id: 'rocket-launch',
-                name: 'Rocket Launch',
-                icon: '🚀',
-                description: 'Fuel your rocket by typing letters! Race to reach the moon before time runs out!',
+                name: 'Cosmic Runner',
+                icon: '🚀',  // Rocket for the runner level!
+                description: 'Run through the cosmos! Type letters to blast obstacles and defeat elite bosses!',
                 difficulty: 2
             },
             {
@@ -416,41 +416,44 @@ class GameUI {
                 comingSoon: true
             }
         ];
-        
+
         const levelsHtml = levels.map(level => {
             const progress = this.game.player.getLevelProgress(level.id);
             const unlocked = progress?.unlocked && !level.comingSoon;
             const stars = progress?.bestStars || 0;
-            
-            const difficultyStars = Array(3).fill(0).map((_, i) => 
-                `<span class="difficulty-star ${i < level.difficulty ? '' : 'empty'}">★</span>`
+
+            // Use lightning bolts for difficulty instead of stars (max 4 levels)
+            const difficultyIndicator = Array(4).fill(0).map((_, i) =>
+                `<span class="difficulty-bolt ${i < level.difficulty ? 'active' : 'empty'}">⚡</span>`
             ).join('');
-            
+
             const progressPercent = progress ? Math.min(100, (progress.timesCompleted / 5) * 100) : 0;
-            
+
             return `
                 <div class="level-card ${unlocked ? '' : 'locked'}" data-level="${level.id}">
                     <span class="level-icon">${level.icon}</span>
                     <h3>${level.name}</h3>
                     <p>${level.description}</p>
-                    <div class="level-difficulty">${difficultyStars}</div>
-                    ${unlocked ? `
-                        <div class="level-progress">
-                            <div class="level-progress-fill" style="width: ${progressPercent}%"></div>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; margin-top: 10px; font-size: 0.8rem; color: var(--text-secondary);">
-                            <span>Best: ${Array(3).fill(0).map((_, i) => i < stars ? '⭐' : '☆').join('')}</span>
-                            <span>High: ${Utils.formatNumber(progress?.highScore || 0)}</span>
-                        </div>
-                    ` : `
-                        <div style="margin-top: 15px; color: var(--text-secondary);">
-                            ${level.comingSoon ? '🔜 Coming Soon' : '🔒 Locked'}
-                        </div>
-                    `}
+                    <div class="level-difficulty">${difficultyIndicator}</div>
+                    <div class="level-card-footer">
+                        ${unlocked ? `
+                            <div class="level-progress">
+                                <div class="level-progress-fill" style="width: ${progressPercent}%"></div>
+                            </div>
+                            <div class="level-stats">
+                                <span>Best: ${Array(3).fill(0).map((_, i) => i < stars ? '⭐' : '☆').join('')}</span>
+                                <span>High: ${Utils.formatNumber(progress?.highScore || 0)}</span>
+                            </div>
+                        ` : `
+                            <div class="level-locked-badge">
+                                ${level.comingSoon ? '🔜 Coming Soon' : '🔒 Locked'}
+                            </div>
+                        `}
+                    </div>
                 </div>
             `;
         }).join('');
-        
+
         this.overlay.innerHTML = `
             <div class="level-select">
                 <h2>SELECT MISSION</h2>
@@ -462,7 +465,7 @@ class GameUI {
                 </button>
             </div>
         `;
-        
+
         // Add click handlers
         document.querySelectorAll('.level-card:not(.locked)').forEach(card => {
             card.addEventListener('click', () => {
@@ -471,20 +474,20 @@ class GameUI {
                 this.game.startLevel(levelId);
             });
         });
-        
+
         document.getElementById('back-btn').addEventListener('click', () => {
             AudioManager.playClick();
             this.showMainMenu();
         });
     }
-    
+
     // Show settings screen
     showSettings() {
         this.clear();
         this.currentScreen = 'settings';
-        
+
         const settings = this.game.player.data.settings;
-        
+
         this.overlay.innerHTML = `
             <div class="settings-screen">
                 <div class="settings-panel">
@@ -518,7 +521,7 @@ class GameUI {
                 </div>
             </div>
         `;
-        
+
         // Toggle handlers
         document.getElementById('sound-toggle').addEventListener('click', (e) => {
             e.target.classList.toggle('active');
@@ -527,31 +530,31 @@ class GameUI {
             AudioManager.toggle();
             if (enabled) AudioManager.playClick();
         });
-        
+
         document.getElementById('hints-toggle').addEventListener('click', (e) => {
             e.target.classList.toggle('active');
             this.game.player.setSetting('showKeyboardHints', e.target.classList.contains('active'));
             AudioManager.playClick();
         });
-        
+
         document.getElementById('particles-toggle').addEventListener('click', (e) => {
             e.target.classList.toggle('active');
             this.game.player.setSetting('particleEffects', e.target.classList.contains('active'));
             AudioManager.playClick();
         });
-        
+
         // Volume slider
         document.getElementById('sound-volume').addEventListener('input', (e) => {
             const volume = e.target.value / 100;
             this.game.player.setSetting('soundVolume', volume);
             AudioManager.setSfxVolume(volume);
         });
-        
+
         document.getElementById('back-btn').addEventListener('click', () => {
             AudioManager.playClick();
             this.showMainMenu();
         });
-        
+
         document.getElementById('reset-btn').addEventListener('click', () => {
             if (confirm('Are you sure you want to reset all progress? This cannot be undone!')) {
                 this.game.player.reset();
@@ -559,15 +562,15 @@ class GameUI {
             }
         });
     }
-    
+
     // Show achievements screen
     showAchievements() {
         this.clear();
         this.currentScreen = 'achievements';
-        
+
         const unlocked = this.game.player.getUnlockedAchievements();
         const allAchievements = Object.entries(ACHIEVEMENTS);
-        
+
         const achievementsHtml = allAchievements.map(([id, achievement]) => {
             const isUnlocked = unlocked.find(a => a.id === id);
             return `
@@ -578,7 +581,7 @@ class GameUI {
                 </div>
             `;
         }).join('');
-        
+
         this.overlay.innerHTML = `
             <div class="level-select">
                 <h2>🏆 ACHIEVEMENTS</h2>
@@ -593,25 +596,25 @@ class GameUI {
                 </button>
             </div>
         `;
-        
+
         document.getElementById('back-btn').addEventListener('click', () => {
             AudioManager.playClick();
             this.showMainMenu();
         });
     }
-    
+
     // Show level intro with extended instructions display
     showLevelIntro(levelName, levelIcon, missionText, callback) {
         this.clear();
         this.currentScreen = 'levelIntro';
-        
+
         // Store for use in countdown
         this.currentLevelInfo = { levelName, levelIcon, missionText };
-        
+
         // Get level-specific tips
         const tips = this.getLevelTips(levelName);
         const tipsHtml = tips.map(tip => `<li>${tip}</li>`).join('');
-        
+
         this.overlay.innerHTML = `
             <div class="level-intro" id="level-intro">
                 <div class="level-intro-header">
@@ -628,13 +631,13 @@ class GameUI {
                 </div>
             </div>
         `;
-        
+
         // Extended intro delay - show instructions for 3 seconds before countdown
         setTimeout(() => {
             this.showCountdown(callback);
         }, 3000);
     }
-    
+
     // Get level-specific tips
     getLevelTips(levelName) {
         const tips = {
@@ -646,26 +649,27 @@ class GameUI {
                 'Press SHIFT to switch weapons when both are active!',
                 'Press ESC to pause the game'
             ],
-            'Rocket Launch': [
-                'Type letters to add fuel to your rocket!',
-                'Keep typing to maintain speed and altitude!',
-                'If you run out of fuel, you\'ll start falling!',
-                'Build combos to charge your BOOST meter!',
+            'Cosmic Runner': [
+                'Type the letter on each obstacle to destroy it!',
+                'ELITE BOSSES: Type the full word shown above them!',
+                'Build combos to unlock weapons: Rapid Fire, Spread Shot, Explosive!',
+                'Press SPACE to jump over obstacles!',
+                'Reach the finish flag to complete each wave!',
                 'Press ESC to pause the game'
             ]
         };
         return tips[levelName] || ['Type the letters as fast as you can!', 'Press ESC to pause the game'];
     }
-    
+
     // Show countdown - keeps instructions visible during countdown
     showCountdown(callback) {
         let count = 5;  // 5-second countdown for more reading time
         const countdownContainer = document.getElementById('countdown-container');
         const levelTips = document.getElementById('level-tips');
-        
+
         const showCount = () => {
             if (!countdownContainer) return;
-            
+
             if (count > 0) {
                 // Show countdown number, keep tips visible
                 countdownContainer.innerHTML = `<div class="countdown">${count}</div>`;
@@ -685,21 +689,21 @@ class GameUI {
                 }, 500);
             }
         };
-        
+
         showCount();
     }
-    
+
     // Show game HUD
     showHUD(hudData) {
         // This is called every frame during gameplay
         // We'll render HUD directly to canvas instead for performance
     }
-    
+
     // Show pause menu
     showPauseMenu() {
         this.currentScreen = 'paused';
         this.showingExitConfirm = false;
-        
+
         this.overlay.innerHTML = `
             <div class="pause-overlay">
                 <div class="pause-content">
@@ -713,23 +717,23 @@ class GameUI {
                 </div>
             </div>
         `;
-        
+
         document.getElementById('resume-btn').addEventListener('click', () => {
             AudioManager.playClick();
             this.game.resumeGame();
         });
-        
+
         document.getElementById('restart-btn').addEventListener('click', () => {
             AudioManager.playClick();
             this.showRestartConfirm();
         });
-        
+
         document.getElementById('quit-btn').addEventListener('click', () => {
             AudioManager.playClick();
             this.showExitConfirm();
         });
     }
-    
+
     // Show restart confirmation
     showRestartConfirm() {
         this.overlay.innerHTML = `
@@ -744,22 +748,22 @@ class GameUI {
                 </div>
             </div>
         `;
-        
+
         document.getElementById('confirm-restart-btn').addEventListener('click', () => {
             AudioManager.playClick();
             this.game.restartLevel();
         });
-        
+
         document.getElementById('cancel-restart-btn').addEventListener('click', () => {
             AudioManager.playClick();
             this.showPauseMenu();
         });
     }
-    
+
     // Show exit confirmation
     showExitConfirm() {
         this.showingExitConfirm = true;
-        
+
         this.overlay.innerHTML = `
             <div class="pause-overlay">
                 <div class="pause-content">
@@ -772,37 +776,37 @@ class GameUI {
                 </div>
             </div>
         `;
-        
+
         document.getElementById('confirm-exit-btn').addEventListener('click', () => {
             AudioManager.playClick();
             this.showingExitConfirm = false;
             this.game.quitToMenu();
         });
-        
+
         document.getElementById('cancel-exit-btn').addEventListener('click', () => {
             AudioManager.playClick();
             this.showingExitConfirm = false;
             this.showPauseMenu();
         });
     }
-    
+
     hidePauseMenu() {
         if (this.currentScreen === 'paused') {
             this.clear();
         }
     }
-    
+
     // Show result screen - ANGRY BIRDS STYLE with count-up animation
     showResultScreen(results) {
         this.currentScreen = 'result';
-        
+
         // Stars start hidden
-        const starsHtml = [1, 2, 3].map(i => 
+        const starsHtml = [1, 2, 3].map(i =>
             `<span class="star-large ${i <= results.stars ? 'earned pending' : 'empty'}" data-star="${i}">
                 ${i <= results.stars ? '⭐' : '☆'}
             </span>`
         ).join('');
-        
+
         // Encouraging message based on performance
         let subtitle = '';
         if (results.victory) {
@@ -812,14 +816,14 @@ class GameUI {
         } else {
             subtitle = '💪 Don\'t give up! You can do it!';
         }
-        
+
         // Show waves completed if available
-        const waveInfo = results.wavesCompleted !== undefined ? 
+        const waveInfo = results.wavesCompleted !== undefined ?
             `<div class="result-stat" data-stat="wave">
                 <div class="value" data-target="${results.wavesCompleted}" data-prefix="Wave ">Wave 0</div>
                 <div class="label">Reached</div>
             </div>` : '';
-        
+
         this.overlay.innerHTML = `
             <div class="result-screen">
                 <h2 class="${results.victory ? 'victory' : 'defeat'}">
@@ -855,41 +859,41 @@ class GameUI {
                 </div>
             </div>
         `;
-        
+
         // Angry Birds style count-up animation
         this.animateResultStats(results);
-        
+
         document.getElementById('menu-btn').addEventListener('click', () => {
             AudioManager.playClick();
             this.game.quitToMenu();
         });
-        
+
         document.getElementById('retry-btn').addEventListener('click', () => {
             AudioManager.playClick();
             this.game.restartLevel();
         });
     }
-    
+
     // Animate stats counting up one by one (Angry Birds style)
     animateResultStats(results) {
         const stats = document.querySelectorAll('.result-stat');
         let delay = 300; // Initial delay
-        
+
         stats.forEach((stat, index) => {
             setTimeout(() => {
                 const valueEl = stat.querySelector('.value');
                 const target = parseInt(valueEl.dataset.target) || 0;
                 const suffix = valueEl.dataset.suffix || '';
                 const prefix = valueEl.dataset.prefix || '';
-                
+
                 // Animate count-up
                 this.animateCountUp(valueEl, target, prefix, suffix, 800);
-                
+
                 // Play tick sound during animation
                 AudioManager.playClick();
             }, delay + index * 600); // 600ms between each stat
         });
-        
+
         // Show stars after all stats
         const totalStatsTime = delay + stats.length * 600 + 800;
         setTimeout(() => {
@@ -898,7 +902,7 @@ class GameUI {
                 starsContainer.style.opacity = '1';
                 starsContainer.style.transition = 'opacity 0.3s ease';
             }
-            
+
             // Animate stars appearing ONE BY ONE
             const earnedStars = document.querySelectorAll('.star-large.earned');
             earnedStars.forEach((star, i) => {
@@ -908,7 +912,7 @@ class GameUI {
                     star.style.transform = 'scale(1.5)';
                     star.style.textShadow = '0 0 30px #ffd700, 0 0 60px #ffd700';
                     AudioManager.playStarCollect();
-                    
+
                     setTimeout(() => {
                         star.style.transform = 'scale(1)';
                         star.style.textShadow = '0 0 10px #ffd700';
@@ -916,7 +920,7 @@ class GameUI {
                 }, i * 500);
             });
         }, totalStatsTime);
-        
+
         // Show buttons after stars
         const buttonsDelay = totalStatsTime + results.stars * 500 + 500;
         setTimeout(() => {
@@ -927,31 +931,31 @@ class GameUI {
             }
         }, buttonsDelay);
     }
-    
+
     // Animate a number counting up
     animateCountUp(element, target, prefix, suffix, duration) {
         const startTime = Date.now();
         const startValue = 0;
-        
+
         const tick = () => {
             const elapsed = Date.now() - startTime;
             const progress = Math.min(elapsed / duration, 1);
-            
+
             // Ease out curve for satisfying feel
             const easeOut = 1 - Math.pow(1 - progress, 3);
             const current = Math.round(startValue + (target - startValue) * easeOut);
-            
+
             if (prefix) {
                 element.textContent = `${prefix}${current}${suffix}`;
             } else {
                 element.textContent = Utils.formatNumber(current) + suffix;
             }
-            
+
             // Play tick sounds at intervals during count
             if (progress < 1 && Math.random() < 0.15) {
                 // Subtle tick sound (using existing correct sound at lower volume conceptually)
             }
-            
+
             if (progress < 1) {
                 requestAnimationFrame(tick);
             } else {
@@ -962,10 +966,10 @@ class GameUI {
                 }, 150);
             }
         };
-        
+
         tick();
     }
-    
+
     // Show achievement popup
     showAchievementPopup(achievement) {
         const popup = document.createElement('div');
@@ -978,19 +982,19 @@ class GameUI {
                 <p>${achievement.description}</p>
             </div>
         `;
-        
+
         document.body.appendChild(popup);
-        
+
         // Show animation
         setTimeout(() => popup.classList.add('show'), 100);
-        
+
         // Hide after delay
         setTimeout(() => {
             popup.classList.remove('show');
             setTimeout(() => popup.remove(), 500);
         }, 4000);
     }
-    
+
     // Add score popup (floating score text)
     addScorePopup(x, y, score) {
         this.scorePopups.push({
@@ -1002,13 +1006,13 @@ class GameUI {
             life: 1
         });
     }
-    
+
     // Flash screen effect
     flashScreen(color) {
         this.flashColor = color;
         this.flashAlpha = 0.3;
     }
-    
+
     // Update popups
     updatePopups(dt) {
         // Update score popups
@@ -1018,18 +1022,18 @@ class GameUI {
             popup.life -= dt;
             popup.alpha = popup.life;
             popup.vy *= 0.98;
-            
+
             if (popup.life <= 0) {
                 this.scorePopups.splice(i, 1);
             }
         }
-        
+
         // Update flash
         if (this.flashAlpha > 0) {
             this.flashAlpha -= dt * 2;
         }
     }
-    
+
     // Draw UI elements on canvas
     drawCanvasUI(ctx) {
         // Draw score popups
@@ -1044,7 +1048,7 @@ class GameUI {
             ctx.fillText(`+${popup.score}`, popup.x, popup.y);
             ctx.restore();
         });
-        
+
         // Draw flash effect
         if (this.flashAlpha > 0) {
             ctx.save();
@@ -1054,11 +1058,11 @@ class GameUI {
             ctx.restore();
         }
     }
-    
+
     // Draw HUD during gameplay
     drawHUD(ctx, hudData) {
         const padding = 20;
-        
+
         // Score (top left)
         ctx.save();
         ctx.fillStyle = '#ffffff';
@@ -1069,16 +1073,16 @@ class GameUI {
         ctx.fillStyle = '#88aaff';
         ctx.fillText('SCORE', padding, 25);
         ctx.restore();
-        
+
         // Combo (top right)
         if (hudData.combo > 0) {
             ctx.save();
             ctx.textAlign = 'right';
-            
+
             // Combo glow
             const comboScale = 1 + Math.min(hudData.combo / 50, 0.5);
             ctx.font = `bold ${32 * comboScale}px "Orbitron", sans-serif`;
-            
+
             // Color based on combo
             if (hudData.combo >= 25) {
                 ctx.fillStyle = '#ff00ff';
@@ -1091,7 +1095,7 @@ class GameUI {
                 ctx.shadowColor = '#ffd700';
             }
             ctx.shadowBlur = 15;
-            
+
             ctx.fillText(`${hudData.combo}x`, ctx.canvas.width - padding, 45);
             ctx.shadowBlur = 0;
             ctx.font = '14px "Exo 2", sans-serif';
@@ -1099,7 +1103,7 @@ class GameUI {
             ctx.fillText('COMBO', ctx.canvas.width - padding, 25);
             ctx.restore();
         }
-        
+
         // ESC hint (subtle, bottom right corner)
         ctx.save();
         ctx.globalAlpha = 0.4;

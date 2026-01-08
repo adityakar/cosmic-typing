@@ -5,7 +5,7 @@
 
 const WordDictionary = {
     // === WORD CATEGORIES ===
-    
+
     // Simple 3-letter words (CVC pattern - Consonant-Vowel-Consonant)
     cvc3: [
         'CAT', 'DOG', 'SUN', 'MOM', 'DAD', 'BIG', 'RUN', 'FUN',
@@ -17,7 +17,7 @@ const WordDictionary = {
         'WET', 'PET', 'SET', 'GET', 'JET', 'LET', 'NET', 'VET',
         'GUM', 'HUM', 'SUM', 'YUM', 'BUN', 'GUN', 'NUN', 'PUN'
     ],
-    
+
     // Simple 4-letter words
     simple4: [
         'STAR', 'MOON', 'SHIP', 'FIRE', 'JUMP', 'SPIN', 'FAST',
@@ -31,7 +31,7 @@ const WordDictionary = {
         'BIRD', 'WORD', 'WORK', 'FORK', 'PORK', 'CORK', 'DOOR',
         'GIRL', 'HELP', 'HAND', 'SAND', 'BAND', 'LAND', 'FIND'
     ],
-    
+
     // Space-themed words (fits the game theme)
     space: [
         'SUN', 'SKY', 'FLY', 'JET', 'ZIP',
@@ -42,7 +42,7 @@ const WordDictionary = {
         'ROCKET', 'PLANET', 'GALAXY', 'METEOR', 'COSMOS',
         'LAUNCH', 'FLIGHT', 'THRUST', 'ASTRO', 'STARS'
     ],
-    
+
     // Action words kids know
     action: [
         'RUN', 'HOP', 'JOB', 'SIT', 'HIT',
@@ -51,7 +51,7 @@ const WordDictionary = {
         'CLIMB', 'DANCE', 'LAUGH', 'SMILE', 'SHOUT',
         'CATCH', 'THROW', 'CHASE', 'BUILD', 'PAINT'
     ],
-    
+
     // Animal words
     animals: [
         'CAT', 'DOG', 'PIG', 'COW', 'HEN',
@@ -60,7 +60,7 @@ const WordDictionary = {
         'TIGER', 'MOUSE', 'SNAKE', 'HORSE', 'SHEEP',
         'BUNNY', 'PUPPY', 'KITTY', 'PANDA', 'ZEBRA'
     ],
-    
+
     // Food words
     food: [
         'HAM', 'JAM', 'PIE', 'EGG', 'NUT',
@@ -68,21 +68,21 @@ const WordDictionary = {
         'PIZZA', 'APPLE', 'BREAD', 'CANDY', 'JUICE',
         'PASTA', 'SALAD', 'CHIPS', 'FRUIT', 'TOAST'
     ],
-    
+
     // Color words
     colors: [
         'RED', 'TAN',
         'BLUE', 'PINK', 'GOLD', 'GRAY',
         'GREEN', 'WHITE', 'BLACK', 'BROWN', 'ORANGE'
     ],
-    
+
     // Family words
     family: [
         'MOM', 'DAD', 'SIS', 'BRO',
         'BABY', 'AUNT', 'PAPA', 'MAMA', 'NANA',
         'FAMILY', 'SISTER', 'BROTHER', 'COUSIN', 'FRIEND'
     ],
-    
+
     // Nature words
     nature: [
         'SUN', 'SKY', 'SEA', 'BUG', 'BEE',
@@ -90,7 +90,7 @@ const WordDictionary = {
         'CLOUD', 'GRASS', 'RIVER', 'OCEAN', 'BEACH',
         'FLOWER', 'FOREST', 'GARDEN', 'SUNSET', 'RAINBOW'
     ],
-    
+
     // School words
     school: [
         'PEN', 'BAG', 'MAP', 'ART',
@@ -98,9 +98,39 @@ const WordDictionary = {
         'CLASS', 'STUDY', 'LEARN', 'WRITE', 'PAPER',
         'SCHOOL', 'PENCIL', 'CRAYON', 'ERASER', 'FOLDER'
     ],
-    
+
+    // === BOSS WORDS BY WAVE ===
+    // Progressively harder words for elite bosses
+    bossWords: {
+        // Waves 1-2: Very easy 3-letter words
+        tier1: ['CAT', 'DOG', 'SUN', 'RUN', 'FUN', 'HAT', 'BAT', 'RED', 'BIG', 'TOP', 'ZAP', 'POP'],
+        // Waves 3-4: Easy 4-letter words
+        tier2: ['STAR', 'MOON', 'FIRE', 'JUMP', 'ZOOM', 'BOOM', 'ROCK', 'HERO', 'FAST', 'GLOW'],
+        // Waves 5-6: Medium 5-letter words
+        tier3: ['LASER', 'ROBOT', 'SPACE', 'BLAST', 'COMET', 'ORBIT', 'POWER', 'FLAME', 'SPARK', 'STEEL'],
+        // Waves 7-8: Harder 6-letter words
+        tier4: ['ROCKET', 'GALAXY', 'METEOR', 'PLASMA', 'COSMIC', 'NEBULA', 'THRUST', 'PHOTON', 'FUSION', 'QUASAR'],
+        // Waves 9-10: Challenge 7-8 letter words
+        tier5: ['ASTEROID', 'STARSHIP', 'BLASTOFF', 'HYPERION', 'TITANIUM', 'IONIZED', 'CHROMIUM', 'SPECTRUM', 'VELOCITY'],
+        // Waves 11+: Expert mode - long and tricky words
+        tier6: ['SUPERNOVA', 'BLACKHOLE', 'SPACESHIP', 'METEORITE', 'ASTRONAUT', 'HYPERDRIVE', 'WORMHOLE', 'MAGNETRON', 'INTERSTELLAR']
+    },
+
+    // Get boss word based on current wave
+    getBossWord(wave) {
+        let tier;
+        if (wave <= 2) tier = this.bossWords.tier1;
+        else if (wave <= 4) tier = this.bossWords.tier2;
+        else if (wave <= 6) tier = this.bossWords.tier3;
+        else if (wave <= 8) tier = this.bossWords.tier4;
+        else if (wave <= 10) tier = this.bossWords.tier5;
+        else tier = this.bossWords.tier6;
+
+        return tier[Math.floor(Math.random() * tier.length)];
+    },
+
     // === DIFFICULTY LEVELS ===
-    
+
     // Get words by difficulty level
     getByDifficulty(difficulty) {
         switch (difficulty) {
@@ -132,11 +162,11 @@ const WordDictionary = {
                 return [...this.cvc3];
         }
     },
-    
+
     // Get themed word list
     getThemedWords(theme, difficulty = 'easy') {
         let baseWords = [];
-        
+
         switch (theme) {
             case 'space':
                 baseWords = this.space;
@@ -159,7 +189,7 @@ const WordDictionary = {
             default:
                 baseWords = [...this.space, ...this.action]; // Mix for variety
         }
-        
+
         // Filter by difficulty (word length)
         const maxLength = {
             'beginner': 3,
@@ -167,88 +197,88 @@ const WordDictionary = {
             'medium': 5,
             'hard': 7
         }[difficulty] || 4;
-        
+
         return baseWords.filter(w => w.length <= maxLength);
     },
-    
+
     // Get a random word appropriate for the difficulty
     getRandomWord(difficulty = 'easy') {
         const words = this.getByDifficulty(difficulty);
         return words[Math.floor(Math.random() * words.length)];
     },
-    
+
     // Get multiple random words without repeats
     getRandomWords(count, difficulty = 'easy') {
         const words = this.getByDifficulty(difficulty);
         const shuffled = [...words].sort(() => Math.random() - 0.5);
         return shuffled.slice(0, Math.min(count, shuffled.length));
     },
-    
+
     // Get a word sequence (for typing practice)
     // Returns words that build on each other (similar starting letters)
     getWordSequence(count, difficulty = 'easy') {
         const words = this.getByDifficulty(difficulty);
         const sequence = [];
         const usedLetters = new Set();
-        
+
         for (let i = 0; i < count; i++) {
             // Try to find words that use common letters
             const candidates = words.filter(w => !sequence.includes(w));
             if (candidates.length === 0) break;
-            
+
             // Pick a word, preferring ones with common starting letters
             const word = candidates[Math.floor(Math.random() * candidates.length)];
             sequence.push(word);
-            
+
             // Track letters used
             word.split('').forEach(l => usedLetters.add(l));
         }
-        
+
         return sequence;
     },
-    
+
     // === WORD MODE HELPERS ===
-    
+
     // Current word state for word mode
     currentWordState: {
         word: '',
         index: 0,
         completed: []
     },
-    
+
     // Start a new word
     startWord(difficulty = 'easy') {
         this.currentWordState.word = this.getRandomWord(difficulty);
         this.currentWordState.index = 0;
         return this.currentWordState.word;
     },
-    
+
     // Get current letter to type
     getCurrentLetter() {
         const state = this.currentWordState;
         if (state.index >= state.word.length) return null;
         return state.word[state.index];
     },
-    
+
     // Get remaining letters in current word
     getRemainingLetters() {
         const state = this.currentWordState;
         return state.word.slice(state.index);
     },
-    
+
     // Get completed letters in current word
     getCompletedLetters() {
         const state = this.currentWordState;
         return state.word.slice(0, state.index);
     },
-    
+
     // Process a key press
     processKey(key) {
         const state = this.currentWordState;
         const expected = this.getCurrentLetter();
-        
+
         if (!expected) return { result: 'complete', word: state.word };
-        
+
         if (key.toUpperCase() === expected) {
             state.index++;
             if (state.index >= state.word.length) {
@@ -257,10 +287,10 @@ const WordDictionary = {
             }
             return { result: 'correct', letter: expected, remaining: this.getRemainingLetters() };
         }
-        
+
         return { result: 'wrong', expected: expected, pressed: key.toUpperCase() };
     },
-    
+
     // Get word progress percentage
     getProgress() {
         const state = this.currentWordState;

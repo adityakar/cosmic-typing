@@ -495,6 +495,45 @@ html, body {
     transition: width 0.3s ease;
 }
 
+/* Difficulty indicator using lightning bolts */
+.difficulty-bolt {
+    font-size: 1rem;
+    opacity: 0.3;
+    transition: all 0.3s ease;
+}
+
+.difficulty-bolt.active {
+    opacity: 1;
+    color: #ffcc00;
+    text-shadow: 0 0 10px rgba(255, 204, 0, 0.6);
+}
+
+/* Level card footer - aligns content to bottom */
+.level-card-footer {
+    margin-top: auto;
+    padding-top: 15px;
+}
+
+/* Make level card a flexbox for footer alignment */
+.level-card {
+    display: flex;
+    flex-direction: column;
+    min-height: 280px;
+}
+
+.level-stats {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 10px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.level-locked-badge {
+    margin-top: 15px;
+    color: var(--text-secondary);
+}
+
 .back-btn {
     margin-top: 30px;
 }

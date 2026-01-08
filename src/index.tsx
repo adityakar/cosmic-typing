@@ -8,7 +8,7 @@ app.use('/static/*', serveStatic())
 
 // Main game page
 app.get('/', (c) => {
-  return c.html(`<!DOCTYPE html>
+    return c.html(`<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -34,6 +34,9 @@ app.get('/', (c) => {
     <script src="/static/game/player.js"></script>
     <script src="/static/game/words.js"></script>
     <script src="/static/game/levels/asteroid-defense.js"></script>
+    <script src="/static/game/levels/rocket-launch/constants.js"></script>
+    <script src="/static/game/levels/rocket-launch/background.js"></script>
+    <script src="/static/game/levels/rocket-launch/entities.js"></script>
     <script src="/static/game/levels/rocket-launch.js"></script>
     <script src="/static/game/ui.js"></script>
     <script src="/static/game/main.js"></script>
