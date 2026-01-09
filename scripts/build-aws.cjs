@@ -52,7 +52,7 @@ const indexHtml = `<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Cosmic Typer - Space Typing Adventure</title>
+    <title>Cosmic Typing - Space Typing Adventure</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Exo+2:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css">
 </head>
@@ -87,7 +87,7 @@ const notFoundHtml = `<!DOCTYPE html>
     <title>Redirecting...</title>
 </head>
 <body>
-    <p>Redirecting to <a href="/">Cosmic Typer</a>...</p>
+    <p>Redirecting to <a href="/">Cosmic Typing</a>...</p>
 </body>
 </html>`;
 

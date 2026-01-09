@@ -36,7 +36,7 @@ class GameUI {
                 <div class="mobile-warning-modal">
                     <div class="warning-icon">⌨️</div>
                     <h2>Keyboard Required</h2>
-                    <p>Cosmic Typer is a typing game that requires a physical keyboard.</p>
+                    <p>Cosmic Typing is a typing game that requires a physical keyboard.</p>
                     
                     <div class="device-hint">
                         <span class="device-wrong">📱 ✗</span>

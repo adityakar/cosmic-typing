@@ -1,10 +1,10 @@
-# Cosmic Typer 🚀
+# Cosmic Typing 🚀
 
 A fun, kid-friendly typing game with a space theme. Built for young beginner typists.
 
 **[▶️ Play Now](https://typing.krishvik.com)**
 
-[![Cosmic Typer Gameplay](public/static/images/og.jpeg)](https://typing.krishvik.com)
+[![Cosmic Typing Gameplay](public/static/images/og.jpeg)](https://typing.krishvik.com)
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 

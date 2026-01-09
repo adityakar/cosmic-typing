@@ -13,7 +13,7 @@ app.get('/', (c) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Cosmic Typer - Space Typing Adventure</title>
+    <title>Cosmic Typing - Space Typing Adventure</title>
     
     <!-- SEO Meta Tags -->
     <meta name="description" content="A fun, kid-friendly typing game with a space theme. Protect Earth from asteroids by typing letters!">
@@ -22,7 +22,7 @@ app.get('/', (c) => {
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://typing.krishvik.com/">
-    <meta property="og:title" content="Cosmic Typer - Space Typing Adventure">
+    <meta property="og:title" content="Cosmic Typing - Space Typing Adventure">
     <meta property="og:description" content="A fun, kid-friendly typing game with a space theme. Protect Earth from asteroids by typing letters!">
     <meta property="og:image" content="https://typing.krishvik.com/static/images/og.jpeg">
     <meta property="og:image:width" content="1200">
@@ -31,7 +31,7 @@ app.get('/', (c) => {
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:url" content="https://typing.krishvik.com/">
-    <meta name="twitter:title" content="Cosmic Typer - Space Typing Adventure">
+    <meta name="twitter:title" content="Cosmic Typing - Space Typing Adventure">
     <meta name="twitter:description" content="A fun, kid-friendly typing game with a space theme. Protect Earth from asteroids by typing letters!">
     <meta name="twitter:image" content="https://typing.krishvik.com/static/images/og.jpeg">
     
