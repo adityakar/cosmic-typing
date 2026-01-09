@@ -393,7 +393,7 @@ class GameUI {
                 difficulty: 1
             },
             {
-                id: 'rocket-launch',
+                id: 'cosmic-runner',
                 name: 'Cosmic Runner',
                 icon: '🚀',  // Rocket for the runner level!
                 description: 'Run through the cosmos! Type letters to blast obstacles and defeat elite bosses!',

@@ -12,7 +12,7 @@ class RocketLaunchLevel {
         this.particles = game.particles;
 
         // Level info
-        this.id = 'rocket-launch';
+        this.id = 'cosmic-runner';
         this.name = 'Cosmic Runner';
         this.description = 'Run through space! Type letters to destroy obstacles or press SPACE to jump!';
         this.icon = '🤖';

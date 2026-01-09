@@ -150,7 +150,7 @@ class CosmicTyper {
             case 'asteroid-defense':
                 this.currentLevel = new AsteroidDefenseLevel(this);
                 break;
-            case 'rocket-launch':
+            case 'cosmic-runner':
                 this.currentLevel = new RocketLaunchLevel(this);
                 break;
             default:
